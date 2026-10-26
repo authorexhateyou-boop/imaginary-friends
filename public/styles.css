@@ -173,3 +173,4 @@ td.n{text-align:right}
 .pack .price{margin-top:8px;background:var(--acc);color:var(--accfg);font-weight:800;border-radius:8px;padding:4px 10px;font-size:13px}
 .pack .ptag{position:absolute;top:-8px;font-size:9px;font-weight:800;text-transform:uppercase;background:#fff;color:#000;border-radius:5px;padding:2px 6px}
 code{background:var(--s2);padding:1px 5px;border-radius:5px;font-size:11px}
+.foot{margin-top:40px;text-align:center;font-size:12px;color:var(--muted)}.foot a{color:var(--muted)}

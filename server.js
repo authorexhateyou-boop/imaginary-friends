@@ -3,6 +3,7 @@
 // Local mode: one user on this computer, data in ./data.
 import express from 'express';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import Stripe from 'stripe';
 import { config, MODE, PACKS, ROOT } from './lib/config.js';
 import { store } from './lib/store/index.js';
@@ -12,10 +13,26 @@ import { TOOLS, STYLES, CAMERAS, createJob, recoverStaleJobs, removeBg, live } f
 import { VIDEO_MODELS, VOICES, PRICE } from './lib/models.js';
 import { PLATFORMS, ANGLES, LANGS } from './lib/prompts.js';
 import { hasFF } from './lib/ffmpeg.js';
+import { securityHeaders, limit } from './lib/security.js';
 
 const stripe = config.stripeSecret ? new Stripe(config.stripeSecret) : null;
 const app = express();
 app.set('trust proxy', 1);
+app.disable('x-powered-by');
+app.use(securityHeaders);
+// Terms & Privacy pages, filled in from COMPANY_NAME / SUPPORT_EMAIL.
+const legal = (name, title) => (req, res) => {
+  const fs2 = (f) => readFileSync(path.join(ROOT, 'legal', f), 'utf8');
+  const email = process.env.SUPPORT_EMAIL;
+  const fill = (t) => t.replaceAll('{{COMPANY}}', esc(process.env.COMPANY_NAME || 'Treelion Enterprise'))
+    .replaceAll('{{DATE}}', '27 October 2026')
+    .replaceAll('{{CONTACT}}', email ? `Email <a href="mailto:${esc(email)}">${esc(email)}</a>` : 'Contact us through the support channel listed on our website.');
+  res.type('html').send(fill(fs2('_layout.html').replace('{{TITLE}}', title).replace('{{BODY}}', fs2(name))));
+};
+const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+app.get('/terms', legal('terms.md.html', 'Terms of Service'));
+app.get('/privacy', legal('privacy.md.html', 'Privacy Notice'));
+app.get('/api/health', (req, res) => res.json({ ok: true, mode: MODE }));
 
 const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((e) => {
   if (e.message === 'INSUFFICIENT_CREDITS') return res.status(402).json({ error: 'Not enough credits. Top up to continue.', code: 'credits' });
@@ -122,7 +139,7 @@ app.post('/api/settings', wrap(async (req, res) => {
 }));
 
 // ---------- payments ----------
-app.post('/api/checkout', wrap(async (req, res) => {
+app.post('/api/checkout', limit('checkout', 15, 10), wrap(async (req, res) => {
   if (!stripe) throw fail('Payments are not set up yet', 501);
   const pack = PACKS.find((p) => p.id === req.body.pack);
   if (!pack) throw fail('Unknown pack');
@@ -155,12 +172,13 @@ app.post('/api/checkout/verify', wrap(async (req, res) => {
 }));
 
 // ---------- uploads ----------
-app.post('/api/upload', wrap(async (req, res) => res.json({ url: await saveDataUrl(req.body.dataUrl) })));
+app.post('/api/upload', limit('upload', 40, 60), wrap(async (req, res) => res.json({ url: await saveDataUrl(req.body.dataUrl) })));
 
 // ---------- friends ----------
 app.get('/api/friends', wrap(async (req, res) => res.json(await store.list('friends', req.uid))));
-app.post('/api/friends', wrap(async (req, res) => {
-  const { name, photos, note } = req.body;
+app.post('/api/friends', limit('create', 30, 60), wrap(async (req, res) => {
+  const { name, photos, note, consent } = req.body;
+  if (consent !== true) throw fail('Please confirm you have permission to use these photos');
   if (!name?.trim()) throw fail('Give your friend a name');
   if (!photos?.length) throw fail('Add at least one photo, it is the face reference');
   const urls = [];
@@ -175,7 +193,7 @@ app.delete('/api/friends/:id', wrap(async (req, res) => {
 
 // ---------- products ----------
 app.get('/api/products', wrap(async (req, res) => res.json(await store.list('products', req.uid))));
-app.post('/api/products', wrap(async (req, res) => {
+app.post('/api/products', limit('create', 30, 60), wrap(async (req, res) => {
   const { name, image, price, link, benefits, cutout } = req.body;
   if (!name?.trim()) throw fail('Product name is required');
   if (!image) throw fail('Add a product photo');
@@ -216,7 +234,7 @@ app.post('/api/estimate', wrap(async (req, res) => {
   res.json({ credits: Math.ceil(t.estimate(cleanInput(req.body.input || {}))) });
 }));
 
-app.post('/api/jobs', wrap(async (req, res) => {
+app.post('/api/jobs', limit('jobs', 60, 60), wrap(async (req, res) => {
   const t = TOOLS[req.body.tool];
   if (!t) throw fail('Unknown tool');
   const running = [...live.values()].filter((j) => j.user_id === req.uid).length;

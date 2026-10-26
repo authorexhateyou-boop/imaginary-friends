@@ -21,6 +21,7 @@ About 30 minutes. You need accounts on supabase.com, railway.com, stripe.com and
    - `FAL_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
    - `ADMIN_TOKEN` (any long random string)
    - `FREE_CREDITS=30` (welcome credits per guest)
+   - `COMPANY_NAME` and `SUPPORT_EMAIL` (shown on /terms and /privacy)
 3. **Settings → Networking → Generate Domain**. Copy it and set `PUBLIC_URL=https://<your-domain>`.
 4. Open the domain. You should land on the studio with 30 credits.
 
@@ -50,6 +51,12 @@ curl -X POST https://<your-domain>/api/admin/credits \
 ```
 
 List users: `curl https://<your-domain>/api/admin/users -H "x-admin-token: <ADMIN_TOKEN>"`
+
+## Before you announce it
+
+- Read `/terms` and `/privacy` on your site. They're a solid starting template written for Malaysia's PDPA, but have them checked before you take real payments.
+- Do one real RM purchase in Stripe Live mode and refund it from the Stripe dashboard.
+- Generate one of each mode (Video, Image, Ad, Talk, Story) with the real fal key and check the costs in your fal dashboard against the credits charged. Adjust `lib/models.js` if needed.
 
 ## Good to know
 

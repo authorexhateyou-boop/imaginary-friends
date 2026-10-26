@@ -392,7 +392,7 @@ function friendModal() {
   const m = modal(`<h2>New friend</h2><p class="muted" style="margin:0">1–3 clear photos of the same face. They stay consistent in everything you make.</p>
     <label class="l">Name</label><input class="in" id="fn" placeholder="Aisyah">
     <label class="l">Photos</label><label class="drop" id="fdrop">⬆ Choose photos</label><div class="pvs" id="fpv"></div>
-    <p class="hint">Use your own face or people who agreed to it.</p>
+    <label class="check" style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:13px"><input type="checkbox" id="fok" style="margin-top:3px"> <span>These are photos of me, or I have this person's permission to use their face. No minors. <a href="/terms" target="_blank">Terms</a></span></label>
     <div class="acts" style="margin-top:14px"><button class="btn pri" id="fsave">Save friend</button></div>`);
   $('#fdrop', m).onclick = () => pickFile(async (files) => {
     photos = await Promise.all(files.slice(0, 3).map((x) => fileToDataUrl(x, 1400)));
@@ -401,7 +401,8 @@ function friendModal() {
   $('#fsave', m).onclick = async (e) => {
     try {
       e.target.disabled = true;
-      const fr = await api('/api/friends', { name: $('#fn', m).value, photos });
+      if (!$('#fok', m).checked) { toast('Please confirm you have permission to use these photos', true); e.target.disabled = false; return; }
+      const fr = await api('/api/friends', { name: $('#fn', m).value, photos, consent: true });
       await load();
       F().friendId = fr.id;
       closeModal(); renderAll(); toast(`${fr.name} added`);
@@ -499,7 +500,8 @@ async function accountModal() {
     <div class="packs">${packs.map((p) => `<button class="pack" data-pack="${esc(p.id)}">${p.tag ? `<span class="ptag">${esc(p.tag)}</span>` : ''}<b>${p.credits.toLocaleString()}</b><small>credits</small><span class="price">${CFG.currency === "MYR" ? "RM" : esc(CFG.currency) + " "}${p.price}</span></button>`).join('')}</div>
     <p class="hint">Secure checkout by Stripe: card, FPX online banking, GrabPay.</p>` : '<p class="hint" style="margin-top:14px">Top-ups are coming soon.</p>'}
     <p class="hint">You're using a guest account on this browser. Clearing your browser data loses it. Account ID: <code style="user-select:all">${esc(a.userId)}</code></p>
-    <label class="l" style="margin-top:18px">Activity</label>${ledgerTable(ledger)}`);
+    <label class="l" style="margin-top:18px">Activity</label>${ledgerTable(ledger)}
+    <p class="hint" style="margin-top:14px"><a href="/terms" target="_blank">Terms</a> · <a href="/privacy" target="_blank">Privacy</a></p>`);
   m.querySelectorAll('[data-pack]').forEach((b) => (b.onclick = async () => {
     b.disabled = true;
     try { const { url } = await api('/api/checkout', { pack: b.dataset.pack }); location.href = url; } catch (e) { toast(e.message, true); b.disabled = false; }

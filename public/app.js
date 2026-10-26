@@ -365,7 +365,7 @@ function pickFile(cb, multiple) {
   i.onchange = () => i.files.length && cb(multiple ? [...i.files] : i.files[0]);
   i.click();
 }
-async function fileToDataUrl(file, max = 1600) {
+async function fileToDataUrl(file, max = 1280) {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Could not read that image')); i.src = url; });
@@ -373,7 +373,8 @@ async function fileToDataUrl(file, max = 1600) {
     const c = document.createElement('canvas');
     c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-    return c.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.92);
+    // WebP keeps transparency (product cut-outs) and stays small enough for serverless upload limits (~4 MB)
+    return file.type === 'image/png' ? c.toDataURL('image/webp', 0.9) : c.toDataURL('image/jpeg', 0.88);
   } finally { URL.revokeObjectURL(url); }
 }
 
@@ -395,7 +396,7 @@ function friendModal() {
     <label class="check" style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:13px"><input type="checkbox" id="fok" style="margin-top:3px"> <span>These are photos of me, or I have this person's permission to use their face. No minors. <a href="/terms" target="_blank">Terms</a></span></label>
     <div class="acts" style="margin-top:14px"><button class="btn pri" id="fsave">Save friend</button></div>`);
   $('#fdrop', m).onclick = () => pickFile(async (files) => {
-    photos = await Promise.all(files.slice(0, 3).map((x) => fileToDataUrl(x, 1400)));
+    photos = await Promise.all(files.slice(0, 3).map((x) => fileToDataUrl(x, 1024)));
     $('#fpv', m).innerHTML = photos.map((p) => `<img src="${p}">`).join('');
   }, true);
   $('#fsave', m).onclick = async (e) => {
@@ -617,6 +618,7 @@ document.addEventListener('mouseout', (e) => { const v = e.target.closest('.card
     renderAll();
     if (S.jobs.some((j) => j.status === 'running')) poll();
   } catch (e) {
-    $('#main').innerHTML = `<div class="empty" style="margin-top:60px">😵 ${esc(e.message)}<br><br>Is the server running? Start it with <b>start.bat</b>.</div>`;
+    const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    $('#main').innerHTML = `<div class="empty" style="margin-top:60px">😵 ${esc(e.message)}${local ? '<br><br>Is the server running? Start it with <b>start.bat</b>.' : ''}</div>`;
   }
 })();

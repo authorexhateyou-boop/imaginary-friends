@@ -1,4 +1,10 @@
-# Going live: Supabase + Railway + Stripe
+# Going live: Supabase + Railway (or Vercel) + Stripe
+
+> **Vercel for now?** It works: import the repo in Vercel (Framework preset: *Other*, no build command, `vercel.json` handles the rest),
+> add the same environment variables as in the Railway step below, and redeploy. Limit: a function can run for at most
+> 5 minutes (Hobby; up to 13 on Pro if you raise `maxDuration` in `vercel.json`), so long Story videos or slow models may
+> time out. Those jobs are failed and refunded automatically. Use the fast *MiniMax H3 Turbo* model, and move to Railway
+> when you have real users.
 
 About 30 minutes. You need accounts on supabase.com, railway.com, stripe.com and fal.ai, and this folder pushed to your GitHub repo (`imaginary-friends`).
 

@@ -332,6 +332,66 @@
   // jobs interrupted by closing the tab
   for (const j of st.jobs) if (j.status === 'running') { j.status = 'error'; j.error = 'Interrupted: the page was closed while generating.'; }
 
+
+  // ---------- brainstorm (preview): reads colours and shapes from the photos ----------
+  async function readImage(src) {
+    const img = await loadImg(src);
+    if (!img) return null;
+    const c = document.createElement('canvas'); c.width = c.height = 24;
+    const x = c.getContext('2d'); x.drawImage(img, 0, 0, 24, 24);
+    const d = x.getImageData(0, 0, 24, 24).data;
+    let r = 0, g = 0, b = 0, n = 0, light = 0;
+    for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 40) continue; r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+    r /= n; g /= n; b /= n;
+    const max = Math.max(r, g, b) / 255, min = Math.min(r, g, b) / 255; light = (max + min) / 2;
+    const sat = max === min ? 0 : (max - min) / (1 - Math.abs(2 * light - 1));
+    let hue = 0;
+    if (max !== min) { const R = r / 255, G = g / 255, B = b / 255, dd = max - min; hue = max === R ? ((G - B) / dd) % 6 : max === G ? (B - R) / dd + 2 : (R - G) / dd + 4; hue = (hue * 60 + 360) % 360; }
+    const name = sat < 0.15 ? (light > 0.75 ? 'white / neutral' : light < 0.25 ? 'black' : 'grey') : hue < 15 || hue >= 345 ? 'red' : hue < 40 ? 'orange / peach' : hue < 65 ? 'yellow / gold' : hue < 160 ? 'green' : hue < 200 ? 'teal' : hue < 255 ? 'blue' : hue < 290 ? 'purple' : 'pink';
+    const ratio = img.width / img.height;
+    return { name, light, sat, shape: ratio < 0.8 ? 'tall' : ratio > 1.25 ? 'wide' : 'square' };
+  }
+  async function brainstorm(b) {
+    const fr = st.friends.find((f) => f.id === b.friendId), pr = st.products.find((p) => p.id === b.productId);
+    const prompt = String(b.prompt || '').trim();
+    if (!fr && !pr && !b.image && !prompt) throw err('Add a photo, a product or a prompt first so there is something to think about');
+    if (st.credits < 2) throw err('Not enough credits. Top up to continue.', 'credits');
+    await sleep(2600);
+    const [fi, pi, xi] = await Promise.all([readImage(fr?.photos?.[0]), readImage(pr?.image), readImage(b.image)]);
+    st.credits -= 2; st.ledger.unshift({ at: Date.now(), what: 'Brainstorm', credits: -2 }); save();
+    const name = pr?.name || 'your product', who = fr?.name || 'your creator';
+    const vibe = (i) => (!i ? '' : i.sat > 0.45 ? 'bold, saturated' : i.light > 0.7 ? 'soft, clean' : i.light < 0.3 ? 'dark, moody' : 'natural');
+    const pack = pi ? `${vibe(pi)} ${pi.name} ${pi.shape === 'tall' ? 'tall pack (bottle or tube)' : pi.shape === 'wide' ? 'wide pack' : 'compact pack'}` : '';
+    const feminine = pi && ['pink', 'purple', 'white / neutral', 'orange / peach'].includes(pi.name);
+    const niche = /serum|skin|cream|glow|toner|mask|lip|beauty/i.test(name + (pr?.benefits || '') + prompt) ? 'skincare & beauty'
+      : /food|snack|kopi|coffee|tea|sambal|cook/i.test(name + prompt) ? 'food & drink'
+      : /phone|gadget|charger|earbud|tech/i.test(name + prompt) ? 'gadgets' : feminine ? 'beauty & lifestyle' : 'lifestyle';
+    const ms = b.lang === 'ms', mg = b.lang === 'manglish';
+    const points = (pr?.benefits || '').split(/[,.;]/).map((x) => x.trim()).filter(Boolean);
+    const style = pi && pi.light > 0.65 ? 'studio' : 'cinematic';
+    return {
+      summary: `${pr ? `${name}${pr.price ? ` (${pr.price})` : ''} has a ${pack} look that reads as ${niche}.` : prompt ? `Your prompt points to ${niche} content.` : 'Here is what we can build from what you gave us.'} ${fr ? `${who}'s photo is ${fi && fi.light > 0.55 ? 'bright and friendly' : 'warm and personal'}, so talking-to-camera content will feel trustworthy.` : 'Add a friend so the ads have a real face.'} ${pr?.price ? `At ${pr.price} it sits in impulse-buy territory, so lead with value and a fast call to action.` : ''}`.trim(),
+      observations: [
+        pi && `Packaging: ${pi.name}, ${vibe(pi)}`, pi && `Shape: ${pi.shape === 'tall' ? 'tall, hero-shot friendly' : pi.shape}`,
+        fi && `Friend photo: ${fi.light > 0.55 ? 'bright lighting' : 'warm, lower light'}`, prompt && `Prompt mentions “${prompt.slice(0, 50)}”`,
+        `Best fit: ${niche}`, xi && `Extra image: ${xi.name} tones`,
+      ].filter(Boolean).slice(0, 5),
+      audience: niche === 'skincare & beauty' ? 'Malaysian women 18–35 on TikTok Shop and Shopee who buy skincare after seeing real results on real faces.'
+        : niche === 'food & drink' ? 'Hungry scrollers and gift buyers who decide in the first 2 seconds of a video.'
+          : 'Value-hunting Malaysian shoppers who trust creators more than brand ads.',
+      sellingPoints: (points.length ? points : [pr?.price ? `Affordable at ${pr.price}` : 'Good value', 'Looks great on camera', 'Easy to start using today']).slice(0, 5),
+      hooks: ms ? [`Jangan beli ${name} sebelum tengok video ni`, `Saya tak percaya sampai saya cuba ${name}`, `${pr?.price || 'Harga ni'} untuk ni? Serius?`]
+        : mg ? [`Wah, ${name} this one really can ah?`, `Don't buy ${name} until you watch this lah`, `${pr?.price || 'This price'} only? Confirm worth it`]
+          : [`I didn't believe it until I tried ${name}`, `Don't buy ${name} before watching this`, `${pr?.price || 'This price'} for this? Seriously?`],
+      ideas: [
+        { title: `${who} reviews it`, mode: 'ad', why: 'A real face talking to camera is the highest-converting format for a first launch.', prompt: points.slice(0, 2).join(', '), settings: { format: 'talking', angle: niche === 'skincare & beauty' ? 'beforeafter' : 'review' } },
+        { title: 'Premium orbit shot', mode: 'video', why: `The ${pi ? pi.name : 'product'} packaging pops in a slow orbit with soft light.`, prompt: `${who} holds ${name} up to the camera, soft window light, product label clearly visible`, settings: { camera: 'orbit', style } },
+        { title: 'Shopee listing set', mode: 'image', why: 'Clean packshots lift listing click-through.', prompt: `${name} on a ${pi && pi.light > 0.6 ? 'soft pastel' : 'dark glossy'} background, soft shadows, premium e-commerce packshot`, settings: { style: 'studio', aspect: '1:1' } },
+        { title: '3 reasons story', mode: 'story', why: 'Infotainment keeps viewers watching and builds trust before the link.', prompt: `3 reasons people are switching to ${name}${prompt ? ` (${prompt.slice(0, 40)})` : ''}`, settings: { scenes: 4, style } },
+      ],
+    };
+  }
+
   // ---------- the fake API ----------
   async function handle(url, body, method = body ? 'POST' : 'GET') {
     await sleep(120);
@@ -373,6 +433,7 @@
       return { ok: true };
     }
     if (m) { const j = st.jobs.find((x) => x.id === m[1]); if (!j) throw err('Not found'); return viewJob(j); }
+    if (p === '/api/brainstorm') return brainstorm(body);
     throw err('Not available in preview');
   }
 

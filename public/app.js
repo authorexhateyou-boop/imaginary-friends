@@ -156,6 +156,28 @@ const HERO = {
   story: ['One prompt, <em>full video</em>', 'Scenes, narration, motion and captions, stitched and ready to post.'],
 };
 
+// ---------- step-by-step guide ----------
+const isSample = (x) => String(x.id).startsWith('sample-');
+const flag = (k, v) => { try { if (v === undefined) return localStorage.getItem(k) === '1'; localStorage.setItem(k, v ? '1' : '0'); } catch { return false; } };
+function guideHTML() {
+  if (flag('if-guide-hidden')) return '';
+  const steps = [
+    { done: S.friends.some((f) => !isSample(f)), t: 'Add your friend', d: 'Upload 1–3 clear photos of the face that stars in your videos. It stays the same in every shot.', btn: '＋ Add friend', act: 'data-new="friend"' },
+    { done: S.products.some((p) => !isSample(p)), t: 'Add a product', d: 'A photo of what you promote, plus its price and selling points.', btn: '＋ Add product', act: 'data-new="product"' },
+    { done: flag('if-brainstormed'), t: 'Brainstorm', d: 'Imaginary Friends studies your photos and prompt, then suggests hooks, angles and ready-made ideas.', btn: '✨ Brainstorm', act: 'data-brain' },
+    { done: S.jobs.some((j) => j.status === 'done'), t: 'Generate & post', d: 'Pick an idea or preset, hit Generate, then download your video with captions.', btn: 'Make an ad', act: 'data-mode="ad"' },
+  ];
+  const n = steps.filter((x) => x.done).length;
+  const next = steps.findIndex((x) => !x.done);
+  return `<section class="guide" aria-label="Getting started">
+    <div class="g-h"><div><h2>${n === 4 ? 'You’re all set ✓' : 'Your first ad in 4 steps'}</h2><p class="muted">${n} of 4 done</p></div>
+      <button class="link" data-guide-hide>Hide guide</button></div>
+    <div class="g-bar"><i style="width:${n * 25}%"></i></div>
+    <ol class="g-steps">${steps.map((x, i) => `<li class="${x.done ? 'done' : i === next ? 'next' : ''}">
+      <span class="g-n">${x.done ? '✓' : i + 1}</span><b>${x.t}</b><p>${x.d}</p>
+      ${x.done ? '<span class="g-ok">Done</span>' : `<button class="btn ${i === next ? 'pri' : ''}" ${x.act}>${x.btn}</button>`}</li>`).join('')}</ol></section>`;
+}
+
 function renderPresets() {
   const [h, p] = HERO[S.mode];
   const f = F();
@@ -166,15 +188,102 @@ function renderPresets() {
       : `<div class="e">${x.e}</div>`;
     return `<button class="preset ${on || (x.cam && f.camera === x.id) ? 'on' : ''}" data-preset="${x.id}"><div class="pv" ${x.cam ? '' : `style="background:radial-gradient(circle at 30% 20%,hsl(${(x.id.length * 47) % 360},60%,28%),#111)"`}>${pv}</div><div class="lb">${esc(x.t)}${x.d ? `<small>${esc(x.d)}</small>` : ''}</div></button>`;
   }).join('');
-  const setup = [];
-  if (!S.friends.length) setup.push('<button data-new="friend">add a friend</button>');
-  if (S.mode === 'ad' && !S.products.length) setup.push('<button data-new="product">add a product</button>');
   $('#presets').innerHTML = `
     <div class="hero"><h1>${h}</h1><p>${p}</p>
-      ${S.app.mode === 'preview' ? `<div class="banner">👀 Preview: click around freely. Videos are made from your own photos in this browser; nothing is uploaded.</div>` : S.app.mock ? `<div class="banner">🧪 Demo mode: placeholders, no cost.${S.app.mode === 'local' ? ' <button data-open="settings">Add fal.ai key</button>' : ''}</div>` : ''}
-      ${setup.length ? `<div class="banner" style="margin-left:6px">👉 First, ${setup.join(' and ')}</div>` : ''}</div>
-    <div class="strip-h"><h2>${S.mode === 'video' ? 'Camera moves' : 'Presets'}</h2></div>
-    <div class="strip">${items}</div>`;
+      ${S.app.mock && S.app.mode === 'local' ? `<div class="banner">🧪 Demo mode: placeholders, no cost. <button data-open="settings">Add fal.ai key</button></div>` : ''}</div>
+    ${guideHTML()}
+    <div class="strip-h"><h2>${S.mode === 'video' ? 'Camera moves' : 'Presets'}</h2>
+      <div class="rail-nav"><button class="rn" data-rail="-1" aria-label="Scroll left">‹</button><button class="rn" data-rail="1" aria-label="Scroll right">›</button></div></div>
+    <div class="rail"><div class="strip" id="strip">${items}</div></div>`;
+  const strip = $('#strip');
+  const upd = () => {
+    const max = strip.scrollWidth - strip.clientWidth - 2;
+    const rail = strip.parentElement;
+    rail.classList.toggle('fade-l', strip.scrollLeft > 2);
+    rail.classList.toggle('fade-r', strip.scrollLeft < max);
+    $('[data-rail="-1"]').disabled = strip.scrollLeft <= 2;
+    $('[data-rail="1"]').disabled = strip.scrollLeft >= max;
+  };
+  strip.addEventListener('scroll', upd, { passive: true });
+  // a vertical mouse wheel scrolls the rail sideways
+  strip.addEventListener('wheel', (e) => {
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && strip.scrollWidth > strip.clientWidth) {
+      const atEnd = (e.deltaY > 0 && strip.scrollLeft >= strip.scrollWidth - strip.clientWidth - 2) || (e.deltaY < 0 && strip.scrollLeft <= 0);
+      if (!atEnd) { e.preventDefault(); strip.scrollLeft += e.deltaY; }
+    }
+  }, { passive: false });
+  requestAnimationFrame(upd);
+}
+
+// ---------- brainstorm ----------
+const BRAIN_KEYS = { ad: ['format', 'angle', 'platform', 'seconds'], video: ['camera', 'style', 'aspect', 'duration'], image: ['style', 'aspect'], talk: ['textMode'], story: ['scenes', 'style', 'aspect'] };
+let lastBrain = null;
+async function runBrainstorm() {
+  const f = F();
+  const ctx = { mode: S.mode, prompt: f.prompt, friendId: f.friendId, productId: f.productId, image: f.startImage || f.image || null, lang: f.lang || 'ms' };
+  if (!ctx.friendId && !ctx.productId && !ctx.image && !String(ctx.prompt || '').trim()) {
+    const fr = S.friends[0], pr = S.products[0];
+    if (!fr && !pr) return toast('Add a friend, a product or a prompt first', true);
+    ctx.friendId = fr?.id || null; ctx.productId = pr?.id || null;
+  }
+  const fr = friendById(ctx.friendId), pr = productById(ctx.productId);
+  const thumbs = [fr?.photos?.[0], pr?.image, ctx.image].filter(Boolean);
+  const m = modal(`<div class="brain">
+    <div class="b-think"><div class="b-thumbs">${thumbs.map((u) => `<img src="${u}" alt="">`).join('')}</div>
+    <h2>Imaginary Friends is thinking…</h2>
+    <ul class="b-steps"><li>Looking at your photos</li><li>Reading your prompt</li><li>Connecting the dots</li></ul></div></div>`, 'wide');
+  const lis = [...m.querySelectorAll('.b-steps li')];
+  let k = 0;
+  const t = setInterval(() => { lis.forEach((li, i) => li.classList.toggle('on', i <= k)); k = Math.min(k + 1, lis.length - 1); }, 800);
+  try {
+    const r = await api('/api/brainstorm', ctx);
+    clearInterval(t);
+    flag('if-brainstormed', true);
+    lastBrain = { ...r, ctx };
+    if ($('#modal').hidden) { toast('✨ Brainstorm ready'); }
+    showBrain(lastBrain, thumbs);
+    renderComposer();
+    load().then(() => { renderPresets(); });
+  } catch (e) {
+    clearInterval(t);
+    closeModal();
+    toast(e.message, true);
+    if (e.code === 'credits') accountModal();
+  }
+}
+
+function showBrain(b, thumbs) {
+  const ML = { ad: 'Ad', video: 'Video', image: 'Image', talk: 'Talk', story: 'Story' };
+  const m = modal(`<div class="brain">
+    <div class="b-head">${thumbs?.length ? `<div class="b-thumbs">${thumbs.map((u) => `<img src="${u}" alt="">`).join('')}</div>` : ''}
+      <div><span class="eyebrow">Imaginary Friends concluded</span><h2>Here’s what we see</h2></div></div>
+    <p class="b-sum">${esc(b.summary)}</p>
+    ${b.observations?.length ? `<div class="chips">${b.observations.map((o) => `<span class="chip">${esc(o)}</span>`).join('')}</div>` : ''}
+    <div class="b-cols">
+      <div><h3>Who it’s for</h3><p>${esc(b.audience)}</p><h3>Selling points</h3><ul>${b.sellingPoints.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
+      <div><h3>Hooks</h3><ul class="hooks">${b.hooks.map((x, i) => `<li><span>${esc(x)}</span><button class="link" data-hook="${i}">Copy</button></li>`).join('')}</ul></div>
+    </div>
+    <h3>Ideas to make now</h3>
+    <div class="ideas">${b.ideas.map((x, i) => `<div class="idea"><span class="mtag">${ML[x.mode]}</span><b>${esc(x.title)}</b><p>${esc(x.why)}</p><button class="btn pri" data-idea="${i}">Use this idea</button></div>`).join('')}</div>
+  </div>`, 'wide');
+  m.querySelectorAll('[data-hook]').forEach((el) => (el.onclick = () => navigator.clipboard.writeText(b.hooks[+el.dataset.hook]).then(() => toast('Hook copied'), () => toast('Select the text to copy it', true))));
+  m.querySelectorAll('[data-idea]').forEach((el) => (el.onclick = () => {
+    const idea = b.ideas[+el.dataset.idea];
+    setMode(idea.mode);
+    const f = S.forms[idea.mode] || (S.forms[idea.mode] = DEFAULTS[idea.mode]());
+    for (const k of BRAIN_KEYS[idea.mode]) {
+      const v = idea.settings?.[k];
+      const opts = pillOptions(k);
+      if (v != null && opts && String(v) in opts) f[k] = /^\d+$/.test(String(v)) ? +v : v;
+    }
+    if (idea.prompt) f.prompt = idea.prompt;
+    if (b.ctx.friendId && 'friendId' in f) f.friendId = b.ctx.friendId;
+    if (b.ctx.productId && 'productId' in f && idea.mode !== 'talk' && idea.mode !== 'story') f.productId = b.ctx.productId;
+    closeModal();
+    renderAll();
+    $('#prompt')?.focus();
+    toast('Idea loaded. Check it and hit Generate');
+  }));
 }
 
 function thumbOf(j) {
@@ -270,7 +379,7 @@ function renderComposer(keepFocus) {
   $('#composer').innerHTML = `
     <div class="refs">${refs.join('')}${needs}<button class="add" data-attach title="Add friend, product or image">＋</button></div>
     <textarea class="prompt" id="prompt" rows="1" placeholder="${esc(prompt)}">${esc(f.prompt)}</textarea>
-    <div class="bar2">${pills}<button class="go" id="go">Generate <span class="c" id="est">✦ …</span></button></div>`;
+    <div class="bar2">${pills}<button class="pill brainbtn" data-brain title="Let Imaginary Friends study your photos and prompt">✨ Brainstorm${lastBrain ? '' : ' <span class="k">2 cr</span>'}</button>${lastBrain ? '<button class="pill" data-brain-last title="Show last brainstorm">↺</button>' : ''}<button class="go" id="go">Generate <span class="c" id="est">✦ …</span></button></div>`;
   autosize();
   if (keepFocus) $('#prompt').focus();
   estimate();
@@ -604,6 +713,12 @@ document.addEventListener('click', (e) => {
   const un = t.closest('[data-unref]');
   if (un) { F()[un.dataset.unref] = null; return renderComposer(); }
   if (t.closest('#go')) return generate();
+  if (t.closest('[data-brain]')) return runBrainstorm();
+  if (t.closest('[data-brain-last]') && lastBrain) return showBrain(lastBrain, [friendById(lastBrain.ctx.friendId)?.photos?.[0], productById(lastBrain.ctx.productId)?.image].filter(Boolean));
+  if (t.closest('[data-guide-hide]')) { flag('if-guide-hidden', true); return renderPresets(); }
+  if (t.closest('[data-guide-show]')) { flag('if-guide-hidden', false); renderPresets(); return $('#presets').scrollIntoView({ behavior: 'smooth' }); }
+  const rl = t.closest('[data-rail]');
+  if (rl) { const st = $('#strip'); return st.scrollBy({ left: +rl.dataset.rail * st.clientWidth * 0.8, behavior: 'smooth' }); }
   const pr = t.closest('[data-preset]');
   if (pr) {
     const p = PRESETS[S.mode].find((x) => x.id === pr.dataset.preset);

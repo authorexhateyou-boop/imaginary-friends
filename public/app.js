@@ -73,10 +73,11 @@ const CAM = { static: 'Static', 'dolly-in': 'Dolly in', 'dolly-out': 'Dolly out'
 const STYLE = { photo: 'Realistic', cinematic: 'Cinematic', ugc: 'Phone / UGC', studio: 'Studio', '3d': '3D animated', anime: 'Anime', clay: 'Clay', storybook: 'Storybook' };
 const PLATFORM = { tiktok: 'TikTok Shop', shopee: 'Shopee', lazada: 'Lazada', instagram: 'Reels' };
 
+// Ad comes first: the affiliate studio is the homepage.
 const MODES = {
+  ad: { tool: 'ugc', label: 'Ad', hot: true },
   video: { tool: 'shot', label: 'Video' },
   image: { tool: 'image', label: 'Image' },
-  ad: { tool: 'ugc', label: 'Ad', hot: true },
   talk: { tool: 'avatar', label: 'Talk' },
   story: { tool: 'story', label: 'Story' },
 };
@@ -131,9 +132,8 @@ const PLACEHOLDER = {
 };
 
 // ---------- state ----------
-const S = { app: null, friends: [], products: [], jobs: [], mode: 'video', forms: {}, preset: {} };
-try { S.mode = localStorage.getItem('if-mode') || 'video'; } catch {}
-if (!MODES[S.mode]) S.mode = 'video';
+// Every visit opens on the homepage (Ad); switching tabs is per visit.
+const S = { app: null, friends: [], products: [], jobs: [], mode: 'ad', forms: {}, preset: {} };
 const F = () => S.forms[S.mode] || (S.forms[S.mode] = DEFAULTS[S.mode]());
 const friendById = (id) => S.friends.find((f) => f.id === id);
 const productById = (id) => S.products.find((p) => p.id === id);
@@ -191,10 +191,10 @@ function renderPresets() {
   $('#presets').innerHTML = `
     <div class="hero"><h1>${h}</h1><p>${p}</p>
       ${S.app.mock && S.app.mode === 'local' ? `<div class="banner">🧪 Demo mode: placeholders, no cost. <button data-open="settings">Add fal.ai key</button></div>` : ''}</div>
-    ${guideHTML()}
     <div class="strip-h"><h2>${S.mode === 'video' ? 'Camera moves' : 'Presets'}</h2>
       <div class="rail-nav"><button class="rn" data-rail="-1" aria-label="Scroll left">‹</button><button class="rn" data-rail="1" aria-label="Scroll right">›</button></div></div>
-    <div class="rail"><div class="strip" id="strip">${items}</div></div>`;
+    <div class="rail"><div class="strip" id="strip">${items}</div></div>
+    ${guideHTML()}`;
   const strip = $('#strip');
   const upd = () => {
     const max = strip.scrollWidth - strip.clientWidth - 2;
@@ -691,7 +691,6 @@ function poll() {
 // ---------- events ----------
 function setMode(m) {
   S.mode = m;
-  try { localStorage.setItem('if-mode', m); } catch {}
 }
 function renderAll() { renderTabs(); renderPresets(); renderComposer(); renderFeed(); }
 

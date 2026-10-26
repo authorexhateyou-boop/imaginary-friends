@@ -188,7 +188,7 @@ code{background:var(--s2);padding:1px 5px;border-radius:5px;font-size:11px}
 .confirm{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:16px}.confirm .sheet{width:min(360px,100%)}
 
 /* guide */
-.guide{margin:26px 0 6px;background:var(--s1);border:1px solid var(--line);border-radius:18px;padding:18px}
+.guide{margin:22px 0 6px;background:var(--s1);border:1px solid var(--line);border-radius:18px;padding:18px}
 .g-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .g-h h2{margin:0;font-size:17px;letter-spacing:-.02em}
 .g-h p{margin:2px 0 0;font-size:12px}

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Imaginary Friends — Studio</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f3f1f8;--fg:#15131c;--muted:#6b6778;--card:#fff;--line:#e2dfeb;--acc:#7c3aed;--accfg:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0a10;--fg:#f1eff7;--muted:#9a95ab;--card:#16141e;--line:#272433;--acc:#b794ff;--accfg:#14101f}}
+:root[data-theme="dark"]{--bg:#0b0a10;--fg:#f1eff7;--muted:#9a95ab;--card:#16141e;--line:#272433;--acc:#b794ff;--accfg:#14101f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 20px}
+.logo{font-weight:800;font-size:22px;letter-spacing:-.03em}.logo b{color:var(--acc)}
+.ghost{background:none;border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer}
+.bento{max-width:1200px;margin:auto;padding:0 20px 30px;display:grid;gap:14px;grid-template-columns:repeat(4,minmax(0,1fr));
+grid-template-areas:"shot shot shot chars" "shot shot shot tpl" "strip strip strip style"}
+@media(max-width:900px){.bento{grid-template-columns:1fr;grid-template-areas:"shot" "tpl" "chars" "style" "strip"}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:16px;min-width:0}
+.shot{grid-area:shot;padding:18px}.chars{grid-area:chars}.tpl{grid-area:tpl}.style{grid-area:style}.strip{grid-area:strip}
+h2{font-size:15px;margin:0 0 10px;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:12px;margin:-6px 0 10px}
+.l{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px}
+input[type=text],textarea,select{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 10px}
+textarea{min-height:64px;resize:vertical}
+.btn{width:100%;margin-top:12px;background:var(--acc);color:var(--accfg);border:0;border-radius:14px;padding:13px;font-weight:700;font-size:16px;cursor:pointer}
+.btn.s{padding:9px;font-size:14px}.btn:disabled{opacity:.6;cursor:wait}
+.stagewrap{background:#000;border-radius:16px;padding:8px}
+.stage{position:relative;overflow:hidden;border-radius:10px;aspect-ratio:16/9;width:100%;perspective:600px;background:#111}
+.scene{position:absolute;inset:-25%;background:linear-gradient(hsl(var(--h),80%,60%),hsl(calc(var(--h) + 50),60%,16%));transform-style:preserve-3d;animation:var(--m) 5s ease-in-out infinite alternate}
+.sun{position:absolute;left:66%;top:30%;width:12%;aspect-ratio:1;border-radius:50%;background:hsl(calc(var(--h) + 20),100%,85%);box-shadow:0 0 60px hsl(calc(var(--h) + 20),100%,70%)}
+.mt{position:absolute;bottom:0;left:0;right:0;height:45%;background:hsl(calc(var(--h) + 35),40%,14%);clip-path:polygon(0 100%,0 45%,22% 20%,40% 50%,60% 15%,80% 48%,100% 30%,100% 100%)}
+.subj{position:absolute;left:50%;bottom:24%;width:15%;aspect-ratio:1/1.5;transform:translateX(-50%);border-radius:40% 40% 14% 14%;background-size:cover;background-position:center;box-shadow:0 10px 30px rgba(0,0,0,.6),0 0 0 2px rgba(255,255,255,.7);display:grid;place-items:center;color:#fff;font-weight:800;font-size:clamp(14px,3vw,34px)}
+.vig{position:absolute;inset:0;box-shadow:inset 0 0 90px rgba(0,0,0,.55);pointer-events:none}
+.hud{position:absolute;left:10px;top:8px;font:11px ui-monospace,monospace;color:#fff;text-shadow:0 1px 3px #000}
+.prog{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.2)}.prog i{display:block;height:100%;width:0;background:var(--acc)}
+.dolly-in{--m:a1}.pan{--m:a3}.crane{--m:a4}.orbit{--m:a5}.dutch{--m:a7}.crash{--m:a8}
+@keyframes a1{from{transform:scale(.85)}to{transform:scale(1.35)}}
+@keyframes a3{from{transform:translateX(-12%)}to{transform:translateX(12%)}}
+@keyframes a4{from{transform:translateY(14%) scale(1.1)}to{transform:translateY(-14%) scale(1.1)}}
+@keyframes a5{from{transform:rotateY(-22deg) scale(1.1)}to{transform:rotateY(22deg) scale(1.1)}}
+@keyframes a7{from{transform:rotate(-12deg) scale(1.2)}to{transform:rotate(12deg) scale(1.2)}}
+@keyframes a8{from{transform:scale(.8)}to{transform:scale(2.1)}}
+.s-photo{filter:none}.s-cine{filter:contrast(1.15) saturate(.9)}.s-3d{filter:saturate(1.5) brightness(1.1)}.s-anime{filter:saturate(1.9) contrast(1.1) hue-rotate(-10deg)}.s-clay{filter:sepia(.35) saturate(1.2) blur(.4px)}.s-water{filter:saturate(.8) brightness(1.15) blur(.8px)}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.opt{border:1px solid var(--line);background:none;border-radius:12px;padding:8px;text-align:left;cursor:pointer;font-size:13px}
+.opt.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.opt b{display:block;font-size:13px}.opt small{color:var(--muted);font-size:11px}
+.tpls{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.av{width:40px;height:40px;border-radius:50%;background-size:cover;background-position:center;display:grid;place-items:center;font-weight:800;color:#fff;flex:none}
+.ch{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:6px;margin-top:6px;cursor:pointer}
+.ch.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}.ch small{display:block;color:var(--muted);font-size:11px}
+.files{display:flex;gap:6px;margin-top:6px}.files input{flex:1;min-width:0;font-size:12px}
+.row2{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
+.shotc{flex:none;width:170px;border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer}
+.shotc .stage{border-radius:0}.shotc p{margin:0;padding:5px 8px;font-size:11px;color:var(--muted)}
+.empty{color:var(--muted);font-size:13px;margin:6px 0 0}
+.top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.top span{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header><div class="logo">imaginary <b>friends</b></div><button class="ghost" id="theme">Theme</button></header>
+<div class="bento">
+
+<section class="card shot">
+  <div class="top"><h2 style="margin:0">Direct the shot</h2><span><b id="ns">0</b> shots · <b id="cr">0</b> credits</span></div>
+  <div class="stagewrap"><div class="stage" id="stage"></div></div>
+  <label class="l" for="pr">Scene prompt</label>
+  <textarea id="pr">walks through a misty mountain valley at golden hour</textarea>
+  <div class="row">
+    <div><label class="l" for="mv">Camera</label>
+      <select id="mv"><option value="dolly-in">Dolly In</option><option value="pan">Pan</option><option value="crane">Crane Up</option><option value="orbit">Orbit</option><option value="dutch">Dutch Roll</option><option value="crash">Crash Zoom</option></select></div>
+    <div><label class="l" for="md">Model</label>
+      <select id="md"><option value="2">Wan 2.6 · 2 cr</option><option value="4" selected>Kling 3.0 · 4 cr</option><option value="5">Seedance 2.0 · 5 cr</option><option value="10">Veo 3.1 · 10 cr</option></select></div>
+  </div>
+  <button class="btn" id="go">Generate shot</button>
+</section>
+
+<section class="card tpl">
+  <h2>Start from a template</h2>
+  <p class="sub">Fills the prompt, camera and style for you.</p>
+  <div class="tpls" id="tpls"></div>
+</section>
+
+<section class="card chars">
+  <h2>Your friends</h2>
+  <p class="sub">Your photo is the reference. Every shot keeps this face.</p>
+  <input type="text" id="cn" placeholder="Name">
+  <div class="files"><input type="file" id="cf" accept="image/*"></div>
+  <button class="btn s" id="add">Save friend</button>
+  <div id="chars"><p class="empty">No friends yet.</p></div>
+</section>
+
+<section class="card strip">
+  <h2>Storyboard</h2>
+  <div class="row2" id="strip"><p class="empty" id="se">Generated shots appear here, same friend in each one.</p></div>
+</section>
+
+<section class="card style">
+  <h2>Visual style</h2>
+  <div class="grid3" id="styles"></div>
+</section>
+
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const STYLES=[["photo","Photo","True to ref"],["cine","Cinematic","Live-action"],["3d","3D Animated","Family film"],["anime","Anime","Bold color"],["clay","Claymation","Handmade"],["water","Storybook","Watercolor"]];
+const TPLS=[["🌙","Raya greeting","greets family at a warmly lit kampung house at dusk","dolly-in","cine"],
+["☕","Café promo","sips a latte in a sunny café, steam rising","orbit","photo"],
+["📦","Product reveal","unveils a new product on a clean pedestal","crash","cine"],
+["🍜","Street food ad","serves sizzling street food at a night market","pan","cine"],
+["🦸","Hero walk","walks through a misty mountain valley at golden hour","crane","3d"],
+["🧳","Travel vlog","explores a colorful old town with a backpack","pan","anime"]];
+const st={chars:[],sel:null,style:"photo",shots:[],credits:0};
+const hue=t=>{let h=0;for(const c of t)h=(h*31+c.charCodeAt(0))%360;return h};
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const cur=()=>st.chars.find(c=>c.id===st.sel)||{name:"Friend",img:""};
+const avS=c=>c.img?`background-image:url(${c.img})`:`background:hsl(${hue(c.name)},60%,45%)`;
+const avT=c=>c.img?"":esc(c.name[0].toUpperCase());
+function drawStyles(){$("styles").innerHTML=STYLES.map(s=>`<button class="opt ${s[0]===st.style?"on":""}" data-s="${s[0]}"><b>${s[1]}</b><small>${s[2]}</small></button>`).join("");preview()}
+$("styles").onclick=e=>{const b=e.target.closest("button");if(b){st.style=b.dataset.s;drawStyles()}};
+$("tpls").innerHTML=TPLS.map((t,i)=>`<button class="opt" data-i="${i}"><b>${t[0]} ${t[1]}</b></button>`).join("");
+$("tpls").onclick=e=>{const b=e.target.closest("button");if(!b)return;const t=TPLS[+b.dataset.i];$("pr").value=t[2];$("mv").value=t[3];st.style=t[4];drawStyles()};
+function drawChars(){$("chars").innerHTML=st.chars.length?st.chars.map(c=>`<div class="ch ${c.id===st.sel?"on":""}" data-id="${c.id}"><div class="av" style="${avS(c)}">${avT(c)}</div><div><b>${esc(c.name)}</b><small>${c.img?"Photo reference":"No photo yet"}</small></div></div>`).join(""):'<p class="empty">No friends yet.</p>'}
+$("chars").onclick=e=>{const d=e.target.closest(".ch");if(d){st.sel=+d.dataset.id;drawChars();preview()}};
+$("add").onclick=()=>{const name=$("cn").value.trim();if(!name){$("cn").focus();return}
+  const f=$("cf").files[0];const done=img=>{const c={id:Date.now(),name,img};st.chars.push(c);st.sel=c.id;$("cn").value="";$("cf").value="";drawChars();preview()};
+  if(!f)return done("");const r=new FileReader();r.onload=()=>done(r.result);r.readAsDataURL(f)};
+const sc=(c,mv,p,sty,label)=>`<div class="scene ${mv} s-${sty}" style="--h:${hue(p)}"><div class="sun"></div><div class="mt"></div><div class="subj" style="${avS(c)}">${avT(c)}</div></div><div class="vig"></div><div class="hud">${esc(label)}</div>`;
+function preview(){$("stage").innerHTML=sc(cur(),$("mv").value,$("pr").value,st.style,"PREVIEW · "+st.style)}
+$("mv").onchange=preview;$("pr").onchange=preview;
+$("go").onclick=()=>{
+  const c=cur(),p=$("pr").value.trim(),mv=$("mv").value,cost=+$("md").value,model=$("md").selectedOptions[0].text.split(" ·")[0],sty=st.style,btn=$("go");
+  btn.disabled=true;let i=0;const msgs=["Reading reference photo…","Planning camera path…","Rendering frames…"];
+  $("stage").innerHTML=`<div class="scene" style="--h:${hue(p)};filter:blur(14px) brightness(.6)"><div class="sun"></div><div class="mt"></div></div><div class="hud" id="hud">${msgs[0]}</div><div class="prog"><i id="bar"></i></div>`;
+  const t=setInterval(()=>{i++;$("bar").style.width=i*5+"%";$("hud").textContent=msgs[Math.min(2,Math.floor(i/7))];btn.textContent="Generating… "+i*5+"%";
+    if(i>=20){clearInterval(t);btn.disabled=false;btn.textContent="Generate shot";
+      $("stage").innerHTML=sc(c,mv,p,sty,`${c.name} · ${mv} · ${model}`);
+      st.credits+=cost;st.shots.push(1);$("ns").textContent=st.shots.length;$("cr").textContent=st.credits;
+      const se=$("se");if(se)se.remove();
+      const d=document.createElement("div");d.className="shotc";
+      d.innerHTML=`<div class="stage">${sc(c,mv,p,sty,"")}</div><p>${esc(c.name)} · ${esc(model)}</p>`;
+      d.onclick=()=>{$("stage").innerHTML=sc(c,mv,p,sty,"REPLAY · "+c.name)};$("strip").appendChild(d)}
+  },100)};
+$("theme").onclick=()=>{const r=document.documentElement,dk=matchMedia("(prefers-color-scheme: dark)").matches,c=r.dataset.theme||(dk?"dark":"light");r.dataset.theme=c==="dark"?"light":"dark"};
+drawStyles();drawChars();
+</script>
+</body>
+</html>

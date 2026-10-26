@@ -80,7 +80,8 @@ app.get('/vendor/supabase.js', (req, res) => res.sendFile(path.join(ROOT, 'node_
 
 // ---------- public config (no auth) ----------
 app.get('/api/config', (req, res) => res.json({
-  mode: MODE,
+  // On Vercel without Supabase, serve the browser-only clickable preview instead of a setup error.
+  mode: process.env.VERCEL && MODE !== 'supabase' ? 'preview' : MODE,
   supabaseUrl: MODE === 'supabase' ? config.supabaseUrl : null,
   supabaseAnonKey: MODE === 'supabase' ? config.supabaseAnonKey : null,
   payments: !!stripe,

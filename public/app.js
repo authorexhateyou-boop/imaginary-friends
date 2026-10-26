@@ -14,7 +14,19 @@ function loadScript(src) {
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.append(s); });
 }
 async function initSession() {
-  Object.assign(CFG, await fetch('/api/config').then((r) => r.json()));
+  try {
+    const r = await fetch('/api/config');
+    Object.assign(CFG, r.ok ? await r.json() : { mode: 'preview', static: true });
+  } catch { CFG.mode = 'preview'; CFG.static = true; } // no backend at all (static hosting): browser-only preview
+  if (CFG.static) document.querySelector('.foot')?.remove();
+  if (CFG.mode === 'preview') {
+    await loadScript('mock.js');
+    Object.assign(CFG, { payments: true, currency: 'MYR', packs: CFG.packs || [
+      { id: 'starter', name: 'Starter', credits: 400, price: 25 },
+      { id: 'creator', name: 'Creator', credits: 1000, price: 59, tag: 'Popular' },
+      { id: 'pro', name: 'Pro', credits: 2800, price: 149, tag: 'Best value' }] });
+    return;
+  }
   if (CFG.mode !== 'supabase') return;
   await loadScript('/vendor/supabase.js');
   sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true } });
@@ -26,6 +38,7 @@ async function initSession() {
 }
 
 async function api(url, body, method) {
+  if (CFG.mode === 'preview') return window.PreviewAPI.handle(url, body, method);
   const headers = body ? { 'content-type': 'application/json' } : {};
   const t = await token();
   if (t) headers.authorization = 'Bearer ' + t;
@@ -33,6 +46,17 @@ async function api(url, body, method) {
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(j.error || r.statusText), { code: j.code, status: r.status });
   return j;
+}
+// In-page confirm (native confirm() is blocked in embedded previews).
+function confirmBox(msg, yes = 'Delete') {
+  return new Promise((resolve) => {
+    const d = document.createElement('div');
+    d.className = 'confirm';
+    d.innerHTML = `<div class="sheet"><p style="margin:0 0 14px;font-weight:600">${esc(msg)}</p><div class="acts"><button class="btn danger" data-y>${esc(yes)}</button><button class="btn" data-n>Cancel</button></div></div>`;
+    document.body.append(d);
+    const done = (v) => { d.remove(); resolve(v); };
+    d.onclick = (e) => { if (e.target.closest('[data-y]')) done(true); else if (e.target.closest('[data-n]') || e.target === d) done(false); };
+  });
 }
 let toastT;
 function toast(msg, bad) {
@@ -147,7 +171,7 @@ function renderPresets() {
   if (S.mode === 'ad' && !S.products.length) setup.push('<button data-new="product">add a product</button>');
   $('#presets').innerHTML = `
     <div class="hero"><h1>${h}</h1><p>${p}</p>
-      ${S.app.mock ? `<div class="banner">🧪 Demo mode: placeholders, no cost.${S.app.mode === 'local' ? ' <button data-open="settings">Add fal.ai key</button>' : ''}</div>` : ''}
+      ${S.app.mode === 'preview' ? `<div class="banner">👀 Preview: click around freely. Videos are made from your own photos in this browser; nothing is uploaded.</div>` : S.app.mock ? `<div class="banner">🧪 Demo mode: placeholders, no cost.${S.app.mode === 'local' ? ' <button data-open="settings">Add fal.ai key</button>' : ''}</div>` : ''}
       ${setup.length ? `<div class="banner" style="margin-left:6px">👉 First, ${setup.join(' and ')}</div>` : ''}</div>
     <div class="strip-h"><h2>${S.mode === 'video' ? 'Camera moves' : 'Presets'}</h2></div>
     <div class="strip">${items}</div>`;
@@ -338,7 +362,8 @@ function attachMenu(anchor) {
     const del = e.target.closest('[data-del]');
     if (del) {
       const [t, id] = del.dataset.del.split(':');
-      if (!confirm(`Delete this ${t === 'f' ? 'friend' : 'product'}?`)) return;
+      closePop();
+      if (!(await confirmBox(`Delete this ${t === 'f' ? 'friend' : 'product'}?`))) return;
       await api(`/api/${t === 'f' ? 'friends' : 'products'}/${id}`, null, 'DELETE');
       await load();
       for (const fm of Object.values(S.forms)) { if (fm.friendId === id) fm.friendId = null; if (fm.productId === id) fm.productId = null; }
@@ -467,7 +492,7 @@ function jobModal(id) {
     m.querySelectorAll('.thumbs button').forEach((x) => x.classList.toggle('on', x === b));
     const a = $('#anim', m); if (a) a.style.display = cur.type === 'image' ? '' : 'none';
   });
-  $('#cp', m) && ($('#cp', m).onclick = () => navigator.clipboard.writeText(j.text).then(() => toast('Copied')));
+  $('#cp', m) && ($('#cp', m).onclick = () => navigator.clipboard.writeText(j.text).then(() => toast('Copied'), () => toast('Select the text to copy it', true)));
   $('#anim', m) && ($('#anim', m).onclick = () => { setMode('video'); F().startImage = cur.url; closeModal(); renderComposer(true); });
   $('#reuse', m).onclick = () => {
     const mode = TOOL_MODE[j.tool];
@@ -479,7 +504,7 @@ function jobModal(id) {
     closeModal(); renderAll();
   };
   $('#del', m).onclick = async () => {
-    if (!confirm('Delete this creation?')) return;
+    if (!(await confirmBox('Delete this creation and its files?'))) return;
     await api('/api/jobs/' + j.id, null, 'DELETE');
     S.jobs = S.jobs.filter((x) => x.id !== j.id);
     closeModal(); renderFeed();
@@ -500,9 +525,11 @@ async function accountModal() {
     ${CFG.payments ? `<label class="l" style="margin-top:20px">Top up</label>
     <div class="packs">${packs.map((p) => `<button class="pack" data-pack="${esc(p.id)}">${p.tag ? `<span class="ptag">${esc(p.tag)}</span>` : ''}<b>${p.credits.toLocaleString()}</b><small>credits</small><span class="price">${CFG.currency === "MYR" ? "RM" : esc(CFG.currency) + " "}${p.price}</span></button>`).join('')}</div>
     <p class="hint">Secure checkout by Stripe: card, FPX online banking, GrabPay.</p>` : '<p class="hint" style="margin-top:14px">Top-ups are coming soon.</p>'}
+    ${a.mode === 'preview' ? '<p class="hint">Preview: buttons show the real checkout layout, but payments are switched off. <a href="#" id="reset">Reset preview data</a></p>' : ''}
     <p class="hint">You're using a guest account on this browser. Clearing your browser data loses it. Account ID: <code style="user-select:all">${esc(a.userId)}</code></p>
     <label class="l" style="margin-top:18px">Activity</label>${ledgerTable(ledger)}
     <p class="hint" style="margin-top:14px"><a href="/terms" target="_blank">Terms</a> · <a href="/privacy" target="_blank">Privacy</a></p>`);
+  $('#reset', m) && ($('#reset', m).onclick = (e) => { e.preventDefault(); confirmBox('Clear all preview friends, products and creations?', 'Clear').then((ok) => ok && window.PreviewAPI.reset()); });
   m.querySelectorAll('[data-pack]').forEach((b) => (b.onclick = async () => {
     b.disabled = true;
     try { const { url } = await api('/api/checkout', { pack: b.dataset.pack }); location.href = url; } catch (e) { toast(e.message, true); b.disabled = false; }

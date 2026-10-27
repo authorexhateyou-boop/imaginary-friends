@@ -15,7 +15,7 @@ import { VIDEO_MODELS, VOICES, PRICE } from './lib/models.js';
 import { PLATFORMS, ANGLES, LANGS } from './lib/prompts.js';
 import { hasFF } from './lib/ffmpeg.js';
 import { securityHeaders, limit } from './lib/security.js';
-import { brainstorm, BRAINSTORM_COST } from './lib/brainstorm.js';
+import { brainstorm, BRAINSTORM_COST, FOLLOWUP_COST } from './lib/brainstorm.js';
 
 const stripe = config.stripeSecret ? new Stripe(config.stripeSecret) : null;
 const app = express();
@@ -226,18 +226,20 @@ app.delete('/api/products/:id', wrap(async (req, res) => {
 
 // ---------- brainstorm ----------
 app.post('/api/brainstorm', limit('brainstorm', 30, 60), wrap(async (req, res) => {
-  const { mode, prompt, friendId, productId, image, lang } = req.body;
+  const { mode, prompt, friendId, productId, image, lang, chat, previous } = req.body;
+  const followUp = Array.isArray(chat) && chat.length > 0;
+  const cost = followUp ? FOLLOWUP_COST : BRAINSTORM_COST;
   const [friend, product] = await Promise.all([
     friendId ? store.get('friends', req.uid, friendId) : null,
     productId ? store.get('products', req.uid, productId) : null,
   ]);
   const img = image && store.isOwnUrl(image) ? image : null;
   if (!friend && !product && !img && !String(prompt || '').trim()) throw fail('Add a photo, a product or a prompt first so there is something to think about');
-  await store.adjust(req.uid, -BRAINSTORM_COST, 'Brainstorm', null);
+  await store.adjust(req.uid, -cost, followUp ? 'Brainstorm follow-up' : 'Brainstorm', null);
   try {
-    res.json(await brainstorm({ mode, prompt: String(prompt || '').slice(0, 2000), friend, product, image: img, lang }));
+    res.json(await brainstorm({ mode, prompt: String(prompt || '').slice(0, 2000), friend, product, image: img, lang, chat, previous }));
   } catch (e) {
-    await store.adjust(req.uid, BRAINSTORM_COST, 'Refund (brainstorm failed)', null, true);
+    await store.adjust(req.uid, cost, 'Refund (brainstorm failed)', null, true);
     throw e;
   }
 }));

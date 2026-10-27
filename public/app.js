@@ -252,20 +252,75 @@ async function runBrainstorm() {
   }
 }
 
-function showBrain(b, thumbs) {
+const BRAIN_SUGGEST = ['Target busy mums', 'Make it funnier', 'Raya / festive theme', 'Push the price & promo', 'Younger Gen Z vibe', 'More premium feel'];
+
+function brainResHTML(b) {
   const ML = { ad: 'Ad', video: 'Video', image: 'Image', talk: 'Talk', story: 'Story' };
-  const m = modal(`<div class="brain">
-    <div class="b-head">${thumbs?.length ? `<div class="b-thumbs">${thumbs.map((u) => `<img src="${u}" alt="">`).join('')}</div>` : ''}
-      <div><span class="eyebrow">Imaginary Friends concluded</span><h2>Here’s what we see</h2></div></div>
-    <p class="b-sum">${esc(b.summary)}</p>
+  return `<p class="b-sum">${esc(b.summary)}</p>
     ${b.observations?.length ? `<div class="chips">${b.observations.map((o) => `<span class="chip">${esc(o)}</span>`).join('')}</div>` : ''}
     <div class="b-cols">
       <div><h3>Who it’s for</h3><p>${esc(b.audience)}</p><h3>Selling points</h3><ul>${b.sellingPoints.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
       <div><h3>Hooks</h3><ul class="hooks">${b.hooks.map((x, i) => `<li><span>${esc(x)}</span><button class="link" data-hook="${i}">Copy</button></li>`).join('')}</ul></div>
     </div>
     <h3>Ideas to make now</h3>
-    <div class="ideas">${b.ideas.map((x, i) => `<div class="idea"><span class="mtag">${ML[x.mode]}</span><b>${esc(x.title)}</b><p>${esc(x.why)}</p><button class="btn pri" data-idea="${i}">Use this idea</button></div>`).join('')}</div>
+    <div class="ideas">${b.ideas.map((x, i) => `<div class="idea"><span class="mtag">${ML[x.mode]}</span><b>${esc(x.title)}</b><p>${esc(x.why)}</p><button class="btn pri" data-idea="${i}">Use this idea</button></div>`).join('')}</div>`;
+}
+
+const chatHTML = (b, typing) => (b.chat || []).map((c) => `<div class="msg ${c.role}">${esc(c.text)}</div>`).join('')
+  + (typing ? '<div class="msg ai typing"><i></i><i></i><i></i></div>' : '');
+
+function showBrain(b, thumbs) {
+  b.chat ||= [];
+  const m = modal(`<div class="brain">
+    <div class="b-head">${thumbs?.length ? `<div class="b-thumbs">${thumbs.map((u) => `<img src="${u}" alt="">`).join('')}</div>` : ''}
+      <div><span class="eyebrow">Imaginary Friends concluded</span><h2>Here’s what we see</h2></div></div>
+    <div id="b-res">${brainResHTML(b)}</div>
+    <div class="b-chat">
+      <h3>Tell Imaginary Friends more</h3>
+      <p class="hint" style="margin:0">Add details only you know: who buys it, the promo, the vibe you want. Each reply reworks the hooks and ideas (1 credit).</p>
+      <div class="b-thread" id="b-thread">${chatHTML(b)}</div>
+      <div class="b-sugg">${BRAIN_SUGGEST.map((x) => `<button class="chip" data-sugg="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+      <form class="b-input" id="b-form"><input id="b-msg" class="in" maxlength="500" autocomplete="off" placeholder="e.g. My buyers are mums 30–45, there’s a 20% off code this week, keep it in BM">
+        <button class="btn pri" id="b-send" type="submit">Send</button></form>
+    </div>
   </div>`, 'wide');
+  bindBrain(m, b);
+  const send = async (text) => {
+    text = text.trim();
+    if (!text) return;
+    const btn = $('#b-send', m), input = $('#b-msg', m);
+    btn.disabled = true; input.value = '';
+    b.chat.push({ role: 'user', text });
+    const thread = $('#b-thread', m);
+    thread.innerHTML = chatHTML(b, true);
+    thread.scrollTop = thread.scrollHeight;
+    try {
+      const r = await api('/api/brainstorm', { ...b.ctx, chat: b.chat, previous: { summary: b.summary, audience: b.audience, sellingPoints: b.sellingPoints, hooks: b.hooks, ideas: b.ideas.map(({ title, mode, prompt }) => ({ title, mode, prompt })) } });
+      Object.assign(b, r, { ctx: b.ctx, chat: b.chat });
+      b.chat.push({ role: 'ai', text: r.reply || 'Updated the hooks and ideas below.' });
+      const res = $('#b-res', m);
+      res.innerHTML = brainResHTML(b);
+      res.classList.remove('flash'); void res.offsetWidth; res.classList.add('flash');
+      bindBrain(m, b);
+      load().then(() => { $('#credits').textContent = `✦ ${S.app.credits.toLocaleString()}`; });
+    } catch (e) {
+      b.chat.pop();
+      input.value = text;
+      toast(e.message, true);
+      if (e.code === 'credits') accountModal();
+    }
+    thread.innerHTML = chatHTML(b);
+    thread.scrollTop = thread.scrollHeight;
+    btn.disabled = false;
+    input.focus();
+  };
+  $('#b-form', m).onsubmit = (e) => { e.preventDefault(); send($('#b-msg', m).value); };
+  m.querySelectorAll('[data-sugg]').forEach((el) => (el.onclick = () => send(el.dataset.sugg)));
+  const thread = $('#b-thread', m);
+  thread.scrollTop = thread.scrollHeight;
+}
+
+function bindBrain(m, b) {
   m.querySelectorAll('[data-hook]').forEach((el) => (el.onclick = () => navigator.clipboard.writeText(b.hooks[+el.dataset.hook]).then(() => toast('Hook copied'), () => toast('Select the text to copy it', true))));
   m.querySelectorAll('[data-idea]').forEach((el) => (el.onclick = () => {
     const idea = b.ideas[+el.dataset.idea];

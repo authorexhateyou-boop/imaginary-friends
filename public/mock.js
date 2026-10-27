@@ -351,14 +351,15 @@
     const ratio = img.width / img.height;
     return { name, light, sat, shape: ratio < 0.8 ? 'tall' : ratio > 1.25 ? 'wide' : 'square' };
   }
-  async function brainstorm(b) {
+  async function baseBrainstorm(b) {
     const fr = st.friends.find((f) => f.id === b.friendId), pr = st.products.find((p) => p.id === b.productId);
     const prompt = String(b.prompt || '').trim();
     if (!fr && !pr && !b.image && !prompt) throw err('Add a photo, a product or a prompt first so there is something to think about');
-    if (st.credits < 2) throw err('Not enough credits. Top up to continue.', 'credits');
-    await sleep(2600);
+    const cost = b.chat?.length ? 1 : 2;
+    if (st.credits < cost) throw err('Not enough credits. Top up to continue.', 'credits');
+    await sleep(b.chat?.length ? 1500 : 2600);
     const [fi, pi, xi] = await Promise.all([readImage(fr?.photos?.[0]), readImage(pr?.image), readImage(b.image)]);
-    st.credits -= 2; st.ledger.unshift({ at: Date.now(), what: 'Brainstorm', credits: -2 }); save();
+    st.credits -= cost; st.ledger.unshift({ at: Date.now(), what: cost === 1 ? 'Brainstorm follow-up' : 'Brainstorm', credits: -cost }); save();
     const name = pr?.name || 'your product', who = fr?.name || 'your creator';
     const vibe = (i) => (!i ? '' : i.sat > 0.45 ? 'bold, saturated' : i.light > 0.7 ? 'soft, clean' : i.light < 0.3 ? 'dark, moody' : 'natural');
     const pack = pi ? `${vibe(pi)} ${pi.name} ${pi.shape === 'tall' ? 'tall pack (bottle or tube)' : pi.shape === 'wide' ? 'wide pack' : 'compact pack'}` : '';
@@ -390,6 +391,47 @@
         { title: '3 reasons story', mode: 'story', why: 'Infotainment keeps viewers watching and builds trust before the link.', prompt: `3 reasons people are switching to ${name}${prompt ? ` (${prompt.slice(0, 40)})` : ''}`, settings: { scenes: 4, style } },
       ],
     };
+  }
+
+  // Follow-up chat: read what the user asked for and rework the conclusion around it.
+  const TWEAKS = [
+    { re: /\bmums?\b|\bmoms?\b|\bibu\b|\bmak\b|mother|parent/i, aud: 'Busy Malaysian mums 28–45 who shop between school runs and trust other mums’ honest reviews.', tag: 'for busy mums', hooks: { en: ['Mums, this saved my morning routine', 'Busy mum hack I wish I knew sooner'], ms: ['Mak-mak, ni penyelamat pagi saya', 'Tip ibu sibuk yang saya baru tahu'] } },
+    { re: /student|gen ?z|young|remaja|budak|\buni/i, aud: 'Gen Z and students 17–24 who want trendy, affordable picks they can show off.', tag: 'Gen Z style', hooks: { en: ['POV: you found the cheat code', 'Not me gatekeeping this for months'], ms: ['POV: korang jumpa cheat code', 'Dah lama saya simpan rahsia ni'] } },
+    { re: /men|lelaki|guy|abang|husband/i, aud: 'Malaysian men 25–40 who want no-fuss products that just work.', tag: 'for men', hooks: { en: ['Bro, stop overthinking this', 'The one thing my wife stole from me'], ms: ['Bro, tak payah fikir panjang', 'Benda ni isteri saya curi'] } },
+    { re: /funn|lawak|humou?r|comed|kelakar|joke/i, tone: 'funny', tag: 'funnier', hooks: { en: ['My wallet: no. Me: yes 😭', 'I bought this for a joke. It’s not a joke.'], ms: ['Dompet: jangan. Saya: beli 😭', 'Saya beli sebab main-main. Rupanya serius'] } },
+    { re: /premium|luxur|mewah|classy|elegan/i, tone: 'premium', tag: 'more premium', hooks: { en: ['Looks like RM300. Costs a fraction.', 'The quiet-luxury pick nobody talks about'], ms: ['Nampak macam RM300. Harga jauh lebih murah.', 'Pilihan mewah yang orang tak cerita'] } },
+    { re: /raya|eid|festive|hari raya|ramadan|puasa/i, theme: 'Hari Raya', tag: 'Raya theme', hooks: { en: ['Raya-ready in 3 days? Watch this', 'Balik kampung glow-up starts here'], ms: ['Nak raya-ready dalam 3 hari? Tengok ni', 'Glow-up balik kampung bermula sini'] } },
+    { re: /cny|chinese new year|tahun baru cina/i, theme: 'Chinese New Year', tag: 'CNY theme', hooks: { en: ['Huat ah! Start the year with this', 'CNY visiting? Bring this'], ms: ['Huat ah! Mula tahun dengan ni', 'Nak ziarah CNY? Bawa ni'] } },
+    { re: /11\.?11|12\.?12|sale|promo|discount|diskaun|off|voucher|code|price|harga|murah/i, angle: 'deal', tag: 'promo push', hooks: { en: ['This price ends at midnight', 'Use my code before it’s gone'], ms: ['Harga ni tamat malam ni', 'Guna kod saya sebelum habis'] } },
+  ];
+  async function brainstorm(b) {
+    const r = await baseBrainstorm(b);
+    const asks = (b.chat || []).filter((c) => c.role === 'user').map((c) => c.text);
+    if (!asks.length) return r;
+    const all = asks.join(' ');
+    const last = asks[asks.length - 1];
+    const hitLast = TWEAKS.filter((t) => t.re.test(last));
+    const hit = [...hitLast, ...TWEAKS.filter((t) => !hitLast.includes(t) && t.re.test(all))];
+    const lang = /\bbm\b|melayu|malay/i.test(all) ? 'ms' : /english|\ben\b/i.test(all) ? 'en' : b.lang === 'ms' ? 'ms' : 'en';
+    const name = st.products.find((p) => p.id === b.productId)?.name || 'it';
+    const theme = hit.find((t) => t.theme)?.theme, tone = hit.find((t) => t.tone)?.tone, deal = hit.some((t) => t.angle);
+    const code = /\b(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])([A-Z0-9]{4,12})\b/.exec(all)?.[1];
+    const pct = /(\d{1,2})\s?%/.exec(all)?.[1];
+    const lastPct = /(\d{1,2})\s?%/.test(last), lastCode = code && last.includes(code);
+    for (const t of hit) if (t.aud) r.audience = t.aud;
+    const newHooks = hit.flatMap((t) => t.hooks[lang] || t.hooks.en);
+    if (pct) newHooks.unshift(lang === 'ms' ? `${pct}% off ${name} minggu ni je!` : `${pct}% off ${name}, this week only!`);
+    r.hooks = [...newHooks, ...r.hooks].slice(0, 4);
+    const extra = [theme && `${theme} setting`, tone === 'funny' && 'playful, comedic delivery', tone === 'premium' && 'elegant, premium styling', pct && `${pct}% off`, code && `code ${code}`].filter(Boolean).join(', ');
+    r.ideas = r.ideas.map((i) => ({ ...i, prompt: extra ? `${i.prompt}${i.prompt ? ', ' : ''}${extra}` : i.prompt, settings: deal && i.mode === 'ad' ? { ...i.settings, angle: 'deal' } : i.settings }));
+    if (deal) r.ideas[0] = { ...r.ideas[0], title: `${r.ideas[0].title} · promo`, why: 'You have a promo, so lead with the price and a deadline.' };
+    if (pct || code) r.sellingPoints = [[pct && `${pct}% off`, code && `code ${code}`].filter(Boolean).join(' with '), ...r.sellingPoints].slice(0, 5);
+    r.summary += ` Based on what you told us${hit.length ? ` (${hit.map((t) => t.tag).join(', ')})` : ''}, we reworked the hooks and ideas.`;
+    const now = [...hitLast.map((t) => t.tag), lastPct && `around the ${pct}% deal`, lastCode && `with code ${code}`].filter(Boolean);
+    r.reply = now.length
+      ? `Got it, ${now.join(', ')}.${asks.length > 1 && hit.length > hitLast.length ? ` I kept your earlier direction (${hit.filter((t) => !hitLast.includes(t)).map((t) => t.tag).join(', ')}) too.` : ''} Check the new hooks and ideas above.`
+      : `Noted. I've added that to the ideas. Try telling me who buys it, the promo, or the vibe (funny, premium, festive) for sharper results.`;
+    return r;
   }
 
   // ---------- the fake API ----------

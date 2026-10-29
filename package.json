@@ -1,8 +1,8 @@
 {
-  "name": "imaginary-friends",
+  "name": "kravitas",
   "version": "0.2.0",
   "private": true,
-  "description": "Imaginary Friends - AI video studio for content creators and affiliates",
+  "description": "Kravitas: AI video studio for content creators and affiliates",
   "type": "module",
   "main": "server.js",
   "scripts": {

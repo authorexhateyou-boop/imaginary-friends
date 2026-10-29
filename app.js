@@ -1,4 +1,4 @@
-// Imaginary Friends — the web app (Express). server.js runs it as a normal server (local/Railway);
+// Kravitas — the web app (Express). server.js runs it as a normal server (local/Railway);
 // api/index.js exports it as a Vercel serverless function.
 // Hosted mode (Supabase configured): every visitor gets an anonymous guest account with its own credits.
 // Local mode: one user on this computer, data in ./data.
@@ -160,7 +160,7 @@ app.post('/api/checkout', limit('checkout', 15, 10), wrap(async (req, res) => {
       price_data: {
         currency: config.currency,
         unit_amount: Math.round(pack.price * 100),
-        product_data: { name: `Imaginary Friends · ${pack.credits.toLocaleString()} credits`, description: `${pack.name} pack` },
+        product_data: { name: `Kravitas · ${pack.credits.toLocaleString()} credits`, description: `${pack.name} pack` },
       },
     }],
     client_reference_id: req.uid,

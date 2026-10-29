@@ -1,4 +1,4 @@
-/* Imaginary Friends — Higgsfield-style studio: feed + presets + one prompt bar. */
+/* Kravitas — Higgsfield-style studio: feed + presets + one prompt bar. */
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -164,7 +164,7 @@ function guideHTML() {
   const steps = [
     { done: S.friends.some((f) => !isSample(f)), t: 'Add your friend', d: 'Upload 1–3 clear photos of the face that stars in your videos. It stays the same in every shot.', btn: '＋ Add friend', act: 'data-new="friend"' },
     { done: S.products.some((p) => !isSample(p)), t: 'Add a product', d: 'A photo of what you promote, plus its price and selling points.', btn: '＋ Add product', act: 'data-new="product"' },
-    { done: flag('if-brainstormed'), t: 'Brainstorm', d: 'Imaginary Friends studies your photos and prompt, then suggests hooks, angles and ready-made ideas.', btn: '✨ Brainstorm', act: 'data-brain' },
+    { done: flag('if-brainstormed'), t: 'Brainstorm', d: 'Kravitas studies your photos and prompt, then suggests hooks, angles and ready-made ideas.', btn: '✨ Brainstorm', act: 'data-brain' },
     { done: S.jobs.some((j) => j.status === 'done'), t: 'Generate & post', d: 'Pick an idea or preset, hit Generate, then download your video with captions.', btn: 'Make an ad', act: 'data-mode="ad"' },
   ];
   const n = steps.filter((x) => x.done).length;
@@ -230,7 +230,7 @@ async function runBrainstorm() {
   const thumbs = [fr?.photos?.[0], pr?.image, ctx.image].filter(Boolean);
   const m = modal(`<div class="brain">
     <div class="b-think"><div class="b-thumbs">${thumbs.map((u) => `<img src="${u}" alt="">`).join('')}</div>
-    <h2>Imaginary Friends is thinking…</h2>
+    <h2>Kravitas is thinking…</h2>
     <ul class="b-steps"><li>Looking at your photos</li><li>Reading your prompt</li><li>Connecting the dots</li></ul></div></div>`, 'wide');
   const lis = [...m.querySelectorAll('.b-steps li')];
   let k = 0;
@@ -273,10 +273,10 @@ function showBrain(b, thumbs) {
   b.chat ||= [];
   const m = modal(`<div class="brain">
     <div class="b-head">${thumbs?.length ? `<div class="b-thumbs">${thumbs.map((u) => `<img src="${u}" alt="">`).join('')}</div>` : ''}
-      <div><span class="eyebrow">Imaginary Friends concluded</span><h2>Here’s what we see</h2></div></div>
+      <div><span class="eyebrow">Kravitas concluded</span><h2>Here’s what we see</h2></div></div>
     <div id="b-res">${brainResHTML(b)}</div>
     <div class="b-chat">
-      <h3>Tell Imaginary Friends more</h3>
+      <h3>Tell Kravitas more</h3>
       <p class="hint" style="margin:0">Add details only you know: who buys it, the promo, the vibe you want. Each reply reworks the hooks and ideas (1 credit).</p>
       <div class="b-thread" id="b-thread">${chatHTML(b)}</div>
       <div class="b-sugg">${BRAIN_SUGGEST.map((x) => `<button class="chip" data-sugg="${esc(x)}">${esc(x)}</button>`).join('')}</div>
@@ -434,7 +434,7 @@ function renderComposer(keepFocus) {
   $('#composer').innerHTML = `
     <div class="refs">${refs.join('')}${needs}<button class="add" data-attach title="Add friend, product or image">＋</button></div>
     <textarea class="prompt" id="prompt" rows="1" placeholder="${esc(prompt)}">${esc(f.prompt)}</textarea>
-    <div class="bar2">${pills}<button class="pill brainbtn" data-brain title="Let Imaginary Friends study your photos and prompt">✨ Brainstorm${lastBrain ? '' : ' <span class="k">2 cr</span>'}</button>${lastBrain ? '<button class="pill" data-brain-last title="Show last brainstorm">↺</button>' : ''}<button class="go" id="go">Generate <span class="c" id="est">✦ …</span></button></div>`;
+    <div class="bar2">${pills}<button class="pill brainbtn" data-brain title="Let Kravitas study your photos and prompt">✨ Brainstorm${lastBrain ? '' : ' <span class="k">2 cr</span>'}</button>${lastBrain ? '<button class="pill" data-brain-last title="Show last brainstorm">↺</button>' : ''}<button class="go" id="go">Generate <span class="c" id="est">✦ …</span></button></div>`;
   autosize();
   if (keepFocus) $('#prompt').focus();
   estimate();

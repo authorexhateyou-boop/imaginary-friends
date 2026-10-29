@@ -1,4 +1,4 @@
-# Imaginary Friends Studio
+# Kravitas
 
 An AI content studio for creators and affiliates, like Higgsfield but simpler, with RekaLab-style prompt-to-video.
 Your **friends** (characters made from real photos) keep the same face in every image and video. Your **products** keep

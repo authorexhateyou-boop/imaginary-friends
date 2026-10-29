@@ -132,7 +132,7 @@
     ctx.font = `700 ${Math.round(W / 40)}px Inter, system-ui, sans-serif`;
     const w = ctx.measureText(text).width + 18;
     ctx.fillStyle = 'rgba(0,0,0,.55)'; rr(ctx, W - w - 12, 12, w, W / 40 + 14, 8); ctx.fill();
-    ctx.fillStyle = '#d4ff3f'; ctx.textAlign = 'left'; ctx.fillText(text, W - w - 3, 12 + W / 40 + 4);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(text, W - w - 3, 12 + W / 40 + 4);
   }
   function wrap(ctx, text, x, y, maxW, lh) {
     const words = String(text).split(/\s+/); const lines = []; let line = '';
@@ -208,7 +208,7 @@
     x.fillStyle = '#f1b892'; x.beginPath(); x.ellipse(256, 270, 130, 160, 0, 0, 7); x.fill();
     x.fillStyle = '#2b1d16'; [196, 316].forEach((cx) => { x.beginPath(); x.ellipse(cx, 260, 14, 18, 0, 0, 7); x.fill(); });
     x.strokeStyle = '#b5523b'; x.lineWidth = 9; x.lineCap = 'round'; x.beginPath(); x.arc(256, 320, 46, 0.2, Math.PI - 0.2); x.stroke();
-    x.fillStyle = '#d4ff3f'; x.fillRect(0, 440, 512, 72); x.fillStyle = '#111'; x.font = '700 30px Inter, sans-serif'; x.textAlign = 'center'; x.fillText('sample friend', 256, 488);
+    x.fillStyle = '#fff'; x.fillRect(0, 440, 512, 72); x.fillStyle = '#111'; x.font = '700 30px Inter, sans-serif'; x.textAlign = 'center'; x.fillText('sample friend', 256, 488);
     return c.toDataURL('image/jpeg', 0.85);
   }
   function drawBottle() {

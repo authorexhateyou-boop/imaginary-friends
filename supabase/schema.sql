@@ -1,4 +1,4 @@
--- Imaginary Friends — Supabase schema.
+-- Kravitas — Supabase schema.
 -- Run once in Supabase → SQL Editor. Safe to re-run.
 
 create table if not exists public.profiles (

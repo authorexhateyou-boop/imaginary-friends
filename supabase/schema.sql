@@ -57,6 +57,29 @@ create table if not exists public.payments (
   created_at timestamptz not null default now()
 );
 
+-- Monthly plan + Stripe customer (for the billing portal).
+alter table public.profiles add column if not exists plan text;
+alter table public.profiles add column if not exists stripe_customer text;
+
+-- Cloned voices (MiniMax custom voice ids).
+create table if not exists public.voices (
+  id text primary key,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  name text not null,
+  voice_id text not null,
+  sample_url text,
+  preview_url text,
+  created_at timestamptz not null default now()
+);
+
+-- Scheduled / published social posts.
+create table if not exists public.posts (
+  id text primary key,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  data jsonb not null,
+  created_at timestamptz not null default now()
+);
+
 -- Only the server (service role) touches these tables. RLS on + no policies = no browser access.
 alter table public.profiles enable row level security;
 alter table public.friends enable row level security;
@@ -64,6 +87,8 @@ alter table public.products enable row level security;
 alter table public.jobs enable row level security;
 alter table public.ledger enable row level security;
 alter table public.payments enable row level security;
+alter table public.voices enable row level security;
+alter table public.posts enable row level security;
 
 -- Create the profile on first visit and grant welcome credits exactly once.
 create or replace function public.ensure_profile(p_user uuid, p_free integer)

@@ -21,7 +21,10 @@ async function initSession() {
   if (CFG.static) document.querySelector('.foot')?.remove();
   if (CFG.mode === 'preview') {
     await loadScript('mock.js');
-    Object.assign(CFG, { payments: true, currency: 'MYR', packs: CFG.packs || [
+    Object.assign(CFG, { payments: true, social: true, currency: 'MYR', plans: CFG.plans || [
+      { id: 'starter', name: 'Starter', credits: 700, price: 35 },
+      { id: 'creator', name: 'Creator', credits: 1600, price: 79, tag: 'Popular' },
+      { id: 'pro', name: 'Pro', credits: 4500, price: 199, tag: 'Best value' }], packs: CFG.packs || [
       { id: 'starter', name: 'Starter', credits: 400, price: 25 },
       { id: 'creator', name: 'Creator', credits: 1000, price: 59, tag: 'Popular' },
       { id: 'pro', name: 'Pro', credits: 2800, price: 149, tag: 'Best value' }] });
@@ -73,15 +76,20 @@ const CAM = { static: 'Static', 'dolly-in': 'Dolly in', 'dolly-out': 'Dolly out'
 const STYLE = { photo: 'Realistic', cinematic: 'Cinematic', ugc: 'Phone / UGC', studio: 'Studio', '3d': '3D animated', anime: 'Anime', clay: 'Clay', storybook: 'Storybook' };
 const PLATFORM = { tiktok: 'TikTok Shop', shopee: 'Shopee', lazada: 'Lazada', instagram: 'Reels' };
 
-// Ad comes first: the affiliate studio is the homepage.
+// Home is a bento overview; Ad is the money-maker, so it comes right after.
 const MODES = {
+  home: { label: 'Home', page: true },
   ad: { tool: 'ugc', label: 'Ad', hot: true },
   video: { tool: 'shot', label: 'Video' },
   image: { tool: 'image', label: 'Image' },
   talk: { tool: 'avatar', label: 'Talk' },
   story: { tool: 'story', label: 'Story' },
+  voice: { tool: 'voice', label: 'Voice' },
+  schedule: { label: 'Schedule', page: true },
 };
-const TOOL_MODE = Object.fromEntries(Object.entries(MODES).map(([m, v]) => [v.tool, m]));
+const TOOL_MODE = Object.fromEntries(Object.entries(MODES).filter(([, v]) => v.tool).map(([m, v]) => [v.tool, m]));
+TOOL_MODE.avatarGen = 'avatars';
+const TOOL_LABEL = { avatarGen: 'Avatar', write: 'Script' };
 
 const PRESETS = {
   video: Object.entries(CAM).map(([k, t], i) => ({ id: k, t, cam: true, h: (i * 40 + 200) % 360, set: { camera: k } })),
@@ -113,14 +121,25 @@ const PRESETS = {
     { id: 'history', e: '📜', t: 'History', d: 'Story time', set: { prompt: 'the origin story of nasi lemak' } },
     { id: 'tips', e: '✅', t: 'Listicle', d: 'Top 5', set: { prompt: 'top 5 budget travel tips for Langkawi' } },
   ],
+  voice: [
+    { id: 'promo', e: '📣', t: 'Excited promo', d: 'ElevenLabs v3', set: { kind: 'tts', voice: 'el:Jessica', voiceEngine: 'v3', prompt: '[excited] Korang! Harga ni memang tak masuk akal. [laughs] Cepat, stok tinggal sikit je!' } },
+    { id: 'bm', e: '🇲🇾', t: 'BM sales voice', d: 'MiniMax, Malay', set: { kind: 'tts', voice: 'mm:Lively_Girl', emotion: 'happy', lang: 'ms', prompt: 'Assalamualaikum semua! Hari ni saya nak kongsi produk yang saya guna setiap hari.' } },
+    { id: 'narrator', e: '🎙️', t: 'Calm narrator', d: 'Story voice-over', set: { kind: 'tts', voice: 'el:George', voiceEngine: 'multilingual', prompt: 'Long before it became Malaysia’s favourite breakfast, nasi lemak was a farmer’s meal.' } },
+    { id: 'whisper', e: '🤫', t: 'Whisper / ASMR', d: 'Audio tags', set: { kind: 'tts', voice: 'el:Aria', voiceEngine: 'v3', prompt: '[whispers] Okay… this is the secret nobody tells you. [sighs] Ready?' } },
+    { id: 'sfx', e: '💥', t: 'Sound effect', d: 'Whoosh, ding, crowd', set: { kind: 'sfx', length: 3, prompt: 'cash register ding with a satisfying coin drop' } },
+    { id: 'music', e: '🎵', t: 'Background music', d: 'Royalty-free track', set: { kind: 'music', length: 30, prompt: 'upbeat lo-fi beat for a TikTok product video, warm and catchy, no vocals' } },
+    { id: 'clone', e: '🧬', t: 'Clone your voice', d: '30s sample', action: 'clone' },
+  ],
 };
 
 const DEFAULTS = {
   video: () => ({ prompt: '', friendId: null, productId: null, startImage: null, camera: 'dolly-in', style: 'cinematic', model: 'h3-turbo', duration: 5, aspect: '9:16', audio: false }),
   image: () => ({ prompt: '', friendId: null, productId: null, style: 'photo', aspect: '9:16', count: 2 }),
-  ad: () => ({ prompt: '', friendId: null, productId: null, format: 'talking', angle: 'review', platform: 'tiktok', lang: 'ms', seconds: 15, voice: 'Sarah', model: 'h3-turbo', captions: true }),
-  talk: () => ({ prompt: '', friendId: null, image: null, textMode: 'script', lang: 'ms', voice: 'Sarah', captions: true, seconds: 15 }),
-  story: () => ({ prompt: '', friendId: null, scenes: 4, aspect: '9:16', style: 'cinematic', lang: 'en', voice: 'Aria', model: 'h3-turbo', captions: true }),
+  ad: () => ({ prompt: '', friendId: null, productId: null, format: 'talking', engine: 'fast', variants: 1, angle: 'review', platform: 'tiktok', lang: 'ms', seconds: 10, voice: 'mm:Lively_Girl', model: 'h3-turbo', captions: true }),
+  talk: () => ({ prompt: '', friendId: null, image: null, textMode: 'script', engine: 'fast', lang: 'ms', voice: 'mm:Lively_Girl', captions: true, seconds: 10 }),
+  story: () => ({ prompt: '', friendId: null, scenes: 4, aspect: '9:16', style: 'cinematic', lang: 'en', voice: 'el:Aria', model: 'h3-turbo', captions: true }),
+  voice: () => ({ prompt: '', kind: 'tts', voice: 'el:Aria', voiceEngine: 'v3', emotion: 'neutral', speed: 1, lang: 'ms', length: 30 }),
+  home: () => ({}), schedule: () => ({}),
 };
 
 const PLACEHOLDER = {
@@ -129,17 +148,18 @@ const PLACEHOLDER = {
   ad: 'Anything to mention? e.g. 50% off today, halal, free shipping (optional)',
   talk: 'Type what your friend should say…',
   story: 'What is the video about? One prompt → narrated video with captions',
+  voice: 'Type the voice-over… v3 understands tags like [excited] [whispers] [laughs]',
 };
 
 // ---------- state ----------
 // Every visit opens on the homepage (Ad); switching tabs is per visit.
-const S = { app: null, friends: [], products: [], jobs: [], mode: 'ad', forms: {}, preset: {} };
+const S = { app: null, friends: [], products: [], jobs: [], voices: [], mode: 'home', forms: {}, preset: {} };
 const F = () => S.forms[S.mode] || (S.forms[S.mode] = DEFAULTS[S.mode]());
 const friendById = (id) => S.friends.find((f) => f.id === id);
 const productById = (id) => S.products.find((p) => p.id === id);
 
 async function load() {
-  [S.app, S.friends, S.products, S.jobs] = await Promise.all([api('/api/state'), api('/api/friends'), api('/api/products'), api('/api/jobs?limit=120')]);
+  [S.app, S.friends, S.products, S.jobs, S.voices] = await Promise.all([api('/api/state'), api('/api/friends'), api('/api/products'), api('/api/jobs?limit=120'), api('/api/voices').catch(() => [])]);
   $('#credits').textContent = `✦ ${S.app.credits.toLocaleString()}`;
 }
 
@@ -153,7 +173,8 @@ const HERO = {
   image: ['Shoot <em>anything</em>', 'Packshots, lifestyle and thumbnails with your friends and products.'],
   ad: ['Affiliate ads in <em>one click</em>', 'Product + friend → script, voice, lip-synced UGC video and captions for TikTok Shop & Shopee.'],
   talk: ['Make them <em>talk</em>', 'Your friend says anything, lip-synced, with captions.'],
-  story: ['One prompt, <em>full video</em>', 'Scenes, narration, motion and captions, stitched and ready to post.'],
+  story: ['One prompt, <em>full video</em>', 'Plan it scene by scene, edit any line, and re-render only what changed.'],
+  voice: ['Voice <em>studio</em>', 'ElevenLabs voice-overs, natural Bahasa Melayu voices, your own cloned voice, music and sound effects.'],
 };
 
 // ---------- step-by-step guide ----------
@@ -182,7 +203,7 @@ function renderPresets() {
   const [h, p] = HERO[S.mode];
   const f = F();
   const items = PRESETS[S.mode].map((x) => {
-    const on = Object.entries(x.set).every(([k, v]) => k === 'prompt' || f[k] === v) && S.preset[S.mode] === x.id;
+    const on = !!x.set && Object.entries(x.set).every(([k, v]) => k === 'prompt' || f[k] === v) && S.preset[S.mode] === x.id;
     const pv = x.cam
       ? `<div class="sc cam-${x.id}" style="--h:${x.h}"><div class="sun"></div><div class="mt"></div><div class="who"></div></div>`
       : `<div class="e">${x.e}</div>`;
@@ -348,12 +369,12 @@ function thumbOf(j) {
 }
 function cardHTML(j) {
   const t = thumbOf(j);
-  const ratio = (j.input?.aspect || (['ugc', 'avatar'].includes(j.tool) ? '9:16' : '1:1')).replace(':', '/');
-  const label = MODES[TOOL_MODE[j.tool]]?.label || (j.tool === 'write' ? 'Script' : j.tool);
+  const ratio = (j.input?.aspect || (['ugc', 'avatar'].includes(j.tool) ? '9:16' : j.tool === 'avatarGen' ? '4/5' : '1:1')).replace(':', '/');
+  const label = MODES[TOOL_MODE[j.tool]]?.label || TOOL_LABEL[j.tool] || j.tool;
   if (j.status === 'running' || j.status === 'error' || !t) {
     const cur = j.steps.find((s) => s.status === 'running') || j.steps[j.steps.length - 1];
     const pct = j.steps.length ? Math.round((j.steps.filter((s) => s.status === 'done').length / (j.steps.length + 1)) * 100) : 5;
-    const st = j.status === 'error' ? `Failed: ${j.error || ''}` : j.status === 'running' ? `${cur?.label || 'Starting'}…${cur?.note ? ' · ' + cur.note : ''}` : '📝 Script ready';
+    const st = j.status === 'error' ? `Failed: ${j.error || ''}` : j.status === 'running' ? `${cur?.label || 'Starting'}…${cur?.note ? ' · ' + cur.note : ''}` : j.outputs.some((o) => o.type === 'audio') ? '🎧 Audio ready · tap to play' : '📝 Script ready';
     return `<div class="card ${j.status === 'running' ? 'run' : j.status === 'error' ? 'err' : ''}" data-job="${j.id}"><div class="box" style="aspect-ratio:${ratio}"><span class="tag">${label}</span><b>${esc(j.title)}</b><span class="st">${esc(st)}</span>${j.status === 'running' ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ''}</div></div>`;
   }
   const media = t.type === 'video' ? `<video src="${t.url}#t=0.3" muted loop playsinline preload="metadata"></video>` : `<img src="${t.url}" loading="lazy" alt="">`;
@@ -399,7 +420,13 @@ function pillOptions(key) {
   const models = Object.fromEntries(Object.entries(c.videoModels).map(([k, m]) => [k, m.label]));
   return {
     model: models, camera: CAM, style: STYLE, lang: LANG, platform: PLATFORM,
-    voice: Object.fromEntries(c.voices.map((v) => [v, v])),
+    voice: voiceOptions(),
+    engine: Object.fromEntries(Object.entries(c.talkEngines || {}).map(([k, e]) => [k, e.label])),
+    variants: { 1: '1 ad', 3: '3 variations', 5: '5 variations' },
+    kind: { tts: 'Voice-over', sfx: 'Sound effect', music: 'Music' },
+    voiceEngine: { v3: 'ElevenLabs v3 · expressive', multilingual: 'ElevenLabs Multilingual' },
+    emotion: Object.fromEntries((c.emotions || []).map((x) => [x, x[0].toUpperCase() + x.slice(1)])),
+    length: F().kind === 'sfx' ? { 2: '2s', 5: '5s', 10: '10s', 20: '20s' } : { 15: '15s', 30: '30s', 60: '1 min', 120: '2 min' },
     aspect: { '9:16': '9:16', '16:9': '16:9', '1:1': '1:1', '4:5': '4:5' },
     duration: { 5: '5s', 8: '8s', 10: '10s' },
     seconds: { 10: '10s', 15: '15s', 20: '20s', 30: '30s' },
@@ -411,6 +438,18 @@ function pillOptions(key) {
   }[key];
 }
 const MODEL_SUB = () => Object.fromEntries(Object.entries(S.app.catalog.videoModels).map(([k, m]) => [k, `${m.tag} · ~${m.perSec} cr/s`]));
+const ENGINE_SUB = () => Object.fromEntries(Object.entries(S.app.catalog.talkEngines || {}).map(([k, e]) => [k, `${e.tag} · ~${Math.ceil(e.centsPerSec * (S.app.catalog.markup || 1.25) * 10) / 10} cr/s`]));
+// Voices: ElevenLabs (el:), MiniMax with a Malay accent (mm:), and the user's own clones (clone:)
+function voiceOptions() {
+  const v = S.app.catalog.voices || {};
+  const el = Array.isArray(v) ? v : v.el || [];
+  return {
+    ...Object.fromEntries((S.voices || []).map((x) => [`clone:${x.id}`, `★ ${x.name} (your voice)`])),
+    ...Object.fromEntries((v.mm || []).map((x) => [`mm:${x}`, `${x.replace(/_/g, ' ')} · BM`])),
+    ...Object.fromEntries(el.map((x) => [String(x).includes(':') ? x : `el:${x}`, x])),
+  };
+}
+const voiceSub = (k) => (k.startsWith('clone:') ? 'Cloned voice' : k.startsWith('mm:') ? 'MiniMax · natural Bahasa Melayu' : 'ElevenLabs');
 
 function renderComposer(keepFocus) {
   const f = F();
@@ -426,15 +465,18 @@ function renderComposer(keepFocus) {
   const pills = {
     video: [P('model', ''), P('aspect', ''), P('duration', ''), P('camera', '🎥'), f.startImage ? '' : P('style', ''), f.model !== 'h3-turbo' ? toggle('audio', 'Sound', f.audio) : ''],
     image: [P('aspect', ''), P('count', '×'), P('style', '')],
-    ad: [P('format', ''), P('angle', ''), P('platform', ''), P('lang', ''), P('seconds', ''), P('voice', '🎙'), f.format === 'showcase' ? P('model', '') : '', toggle('captions', 'Captions', f.captions)],
-    talk: [P('textMode', ''), P('lang', ''), P('voice', '🎙'), f.textMode === 'topic' ? P('seconds', '') : '', toggle('captions', 'Captions', f.captions)],
-    story: [P('scenes', 'Scenes'), P('aspect', ''), P('style', ''), P('lang', ''), P('voice', '🎙'), P('model', ''), toggle('captions', 'Captions', f.captions)],
+    ad: [P('format', ''), f.format === 'talking' ? P('engine', '👄') : P('model', ''), P('variants', '×'), P('angle', ''), P('platform', ''), P('lang', ''), P('seconds', ''), P('voice', '🎙'), toggle('captions', 'Captions', f.captions)],
+    talk: [P('textMode', ''), P('engine', '👄'), P('lang', ''), P('voice', '🎙'), f.textMode === 'topic' ? P('seconds', '') : '', toggle('captions', 'Captions', f.captions)],
+    story: ['<button class="pill brainbtn" data-board title="Plan and edit the video scene by scene">🧩 Storyboard</button>', P('scenes', 'Scenes'), P('aspect', ''), P('style', ''), P('lang', ''), P('voice', '🎙'), P('model', ''), toggle('captions', 'Captions', f.captions)],
+    voice: [P('kind', ''), ...(f.kind === 'tts' ? [P('voice', '🎙'), String(f.voice).startsWith('el:') ? P('voiceEngine', '') : P('emotion', ''), P('lang', '')] : [P('length', '⏱')])],
   }[m].filter(Boolean).join('');
-  const prompt = m === 'talk' && f.textMode === 'topic' ? 'What should they talk about?' : PLACEHOLDER[m];
+  const prompt = m === 'talk' && f.textMode === 'topic' ? 'What should they talk about?' : m === 'voice' && f.kind === 'sfx' ? 'Describe the sound… e.g. whoosh transition with a soft pop' : m === 'voice' && f.kind === 'music' ? 'Describe the track… e.g. upbeat lo-fi for a product video, no vocals' : PLACEHOLDER[m];
+  const tags = m === 'voice' && f.kind === 'tts' && f.voiceEngine === 'v3' && String(f.voice).startsWith('el:')
+    ? `<div class="tagrow">${['[excited]', '[whispers]', '[laughs]', '[sighs]', '[curious]', '[sarcastic]', '[pause]'].map((t) => `<button class="tagchip" data-tag="${t}">${t}</button>`).join('')}</div>` : '';
   $('#composer').innerHTML = `
-    <div class="refs">${refs.join('')}${needs}<button class="add" data-attach title="Add friend, product or image">＋</button></div>
+    ${m === 'voice' ? tags : `<div class="refs">${refs.join('')}${needs}<button class="add" data-attach title="Add friend, product or image">＋</button></div>`}
     <textarea class="prompt" id="prompt" rows="1" placeholder="${esc(prompt)}">${esc(f.prompt)}</textarea>
-    <div class="bar2">${pills}<button class="pill brainbtn" data-brain title="Let Kravitas study your photos and prompt">✨ Brainstorm${lastBrain ? '' : ' <span class="k">2 cr</span>'}</button>${lastBrain ? '<button class="pill" data-brain-last title="Show last brainstorm">↺</button>' : ''}<button class="go" id="go">Generate <span class="c" id="est">✦ …</span></button></div>`;
+    <div class="bar2">${pills}${m === 'voice' ? '' : `<button class="pill brainbtn" data-brain title="Let Kravitas study your photos and prompt">✨ Brainstorm${lastBrain ? '' : ' <span class="k">2 cr</span>'}</button>${lastBrain ? '<button class="pill" data-brain-last title="Show last brainstorm">↺</button>' : ''}`}<button class="go" id="go">Generate <span class="c" id="est">✦ …</span></button></div>`;
   autosize();
   if (keepFocus) $('#prompt').focus();
   estimate();
@@ -456,13 +498,14 @@ function payload() {
   const f = { ...F() };
   if (S.mode === 'ad') { f.notes = f.prompt; delete f.prompt; }
   if (S.mode === 'talk') { if (f.textMode === 'topic') { f.topic = f.prompt; f.script = ''; } else f.script = f.prompt; delete f.prompt; }
+  if (S.mode === 'voice') { f.text = f.prompt; delete f.prompt; }
   return f;
 }
 function validate() {
   const f = F();
   if (S.mode === 'ad' && !f.productId) return 'Add a product first (＋ button)';
   if (S.mode === 'talk' && !f.friendId && !f.image) return 'Add a friend or a photo (＋ button)';
-  if (S.mode !== 'ad' && !f.prompt.trim()) return S.mode === 'talk' ? 'Type what they should say' : 'Type a prompt first';
+  if (S.mode !== 'ad' && !f.prompt.trim()) return S.mode === 'talk' ? 'Type what they should say' : S.mode === 'voice' ? (f.kind === 'tts' ? 'Type the voice-over text' : 'Describe the sound first') : 'Type a prompt first';
   return null;
 }
 
@@ -500,7 +543,7 @@ const closePop = () => { $('#pop').hidden = true; };
 
 function pillMenu(anchor, key) {
   const opts = pillOptions(key);
-  const sub = key === 'model' ? MODEL_SUB() : {};
+  const sub = key === 'model' ? MODEL_SUB() : key === 'engine' ? ENGINE_SUB() : key === 'voice' ? Object.fromEntries(Object.keys(opts).map((k) => [k, voiceSub(k)])) : {};
   const cur = String(F()[key]);
   openPop(anchor, Object.entries(opts).map(([v, l]) => `<button class="it ${v === cur ? 'on' : ''}" data-v="${esc(v)}"><span>${esc(l)}${sub[v] ? `<small>${sub[v]}</small>` : ''}</span></button>`).join(''), (v) => {
     F()[key] = /^\d+$/.test(v) ? +v : v;
@@ -515,7 +558,9 @@ function attachMenu(anchor) {
   const showProducts = m !== 'talk' && m !== 'story';
   const showUpload = m === 'video' || m === 'talk';
   const html = `
-    <div class="h">Friends</div>
+    <div class="h">Friends & avatars</div>
+    <button class="it" data-v="new:avatars">🎭 Avatar library · pick an AI creator</button>
+    <button class="it" data-v="new:create-avatar">✨ Create your own AI avatar</button>
     ${S.friends.map((f) => `<button class="it" data-v="f:${f.id}"><img src="${f.photos[0]}"><span>${esc(f.name)}</span><span class="x" data-del="f:${f.id}" title="Delete">🗑</span></button>`).join('')}
     <button class="it" data-v="new:friend">＋ New friend</button>
     ${showProducts ? `<hr><div class="h">Products</div>
@@ -538,6 +583,8 @@ function attachMenu(anchor) {
     if (v.startsWith('f:')) { f.friendId = v.slice(2); f.image = null; }
     else if (v.startsWith('p:')) f.productId = v.slice(2);
     else if (v === 'new:friend') return friendModal();
+    else if (v === 'new:avatars') return avatarLibraryModal();
+    else if (v === 'new:create-avatar') return avatarBuilderModal();
     else if (v === 'new:product') return productModal();
     else if (v === 'upload') return pickFile(async (file) => {
       const { url } = await api('/api/upload', { dataUrl: await fileToDataUrl(file) });
@@ -627,21 +674,26 @@ function jobModal(id) {
   const j = S.jobs.find((x) => x.id === id);
   if (!j) return;
   const media = j.outputs.filter((o) => o.url && o.type !== 'audio').reverse();
-  const show = (o) => (o.type === 'video' ? `<video src="${o.url}" controls autoplay loop playsinline></video>` : `<img src="${o.url}" alt="">`);
+  const audios = j.outputs.filter((o) => o.url && o.type === 'audio');
+  if (!media.length && audios.length) media.push(...audios);
+  const show = (o) => (o.type === 'video' ? `<video src="${o.url}" controls autoplay loop playsinline></video>` : o.type === 'audio' ? `<div class="aud"><div class="wave">${'<i></i>'.repeat(32)}</div><audio src="${o.url}" controls autoplay></audio></div>` : `<img src="${o.url}" alt="">`);
   const first = media[0];
   const m = modal(`
     <div class="view" id="jv">${first ? show(first) : '<div class="muted">No media yet</div>'}</div>
     <div class="info">
       <h3>${esc(j.title)}</h3>
       <div class="muted" style="font-size:12px">${MODES[TOOL_MODE[j.tool]]?.label || j.tool} · ${new Date(j.createdAt).toLocaleString()} ${j.cost ? `· ✦ ${j.cost}` : ''} ${j.mock ? '· demo' : ''}</div>
-      ${media.length > 1 ? `<div class="thumbs">${media.map((o, i) => `<button data-i="${i}" class="${i === 0 ? 'on' : ''}" title="${esc(o.label || '')}">${o.type === 'video' ? `<video src="${o.url}#t=0.3" muted preload="metadata"></video>` : `<img src="${o.url}">`}</button>`).join('')}</div>` : ''}
+      ${media.length > 1 ? `<div class="thumbs">${media.map((o, i) => `<button data-i="${i}" class="${i === 0 ? 'on' : ''}" title="${esc(o.label || '')}">${o.type === 'video' ? `<video src="${o.url}#t=0.3" muted preload="metadata"></video>` : o.type === 'audio' ? '<span class="ai">♪</span>' : `<img src="${o.url}">`}${o.label ? `<em>${esc(o.label)}</em>` : ''}</button>`).join('')}</div>` : ''}
       ${j.error ? `<div class="err">${esc(j.error)}</div>` : ''}
       ${j.status !== 'done' ? `<ul class="steps">${j.steps.map((s) => `<li class="${s.status}">${esc(s.label)}</li>`).join('')}</ul>` : ''}
       ${j.text ? `<div class="txt" id="jt">${esc(j.text)}</div>` : ''}
       <div class="acts">
         ${first ? `<a class="btn pri" id="dl" href="${dl(first.url)}" download>⬇ Download</a>` : ''}
         ${j.text ? '<button class="btn" id="cp">Copy text</button>' : ''}
-        ${first?.type === 'image' ? '<button class="btn" id="anim">🎬 Animate</button>' : ''}
+        ${first?.type === 'image' && j.tool !== 'avatarGen' ? '<button class="btn" id="anim">🎬 Animate</button>' : ''}
+        ${j.tool === 'avatarGen' && !j.input?.preset && j.status === 'done' ? '<button class="btn pri" id="saveav">＋ Save as friend</button>' : ''}
+        ${media.some((o) => o.type === 'video') && j.status === 'done' ? '<button class="btn" id="post">📤 Post / schedule</button>' : ''}
+        ${j.tool === 'story' && j.status === 'done' && j.board ? '<button class="btn" id="board">🧩 Edit storyboard</button>' : ''}
         <button class="btn" id="reuse">↺ Reuse settings</button>
         <button class="btn danger" id="del">🗑 Delete</button>
       </div>
@@ -656,14 +708,19 @@ function jobModal(id) {
     m.querySelectorAll('.thumbs button').forEach((x) => x.classList.toggle('on', x === b));
     const a = $('#anim', m); if (a) a.style.display = cur.type === 'image' ? '' : 'none';
   });
+  $('#saveav', m) && ($('#saveav', m).onclick = () => saveAvatarFromJob(j, cur));
+  $('#post', m) && ($('#post', m).onclick = () => postModal(j, cur?.type === 'video' ? cur : media.find((o) => o.type === 'video')));
+  $('#board', m) && ($('#board', m).onclick = () => storyboardModal({ board: j.board, reuseFrom: j.id, input: j.input }));
   $('#cp', m) && ($('#cp', m).onclick = () => navigator.clipboard.writeText(j.text).then(() => toast('Copied'), () => toast('Select the text to copy it', true)));
   $('#anim', m) && ($('#anim', m).onclick = () => { setMode('video'); F().startImage = cur.url; closeModal(); renderComposer(true); });
   $('#reuse', m).onclick = () => {
     const mode = TOOL_MODE[j.tool];
+    if (!MODES[mode]?.tool) { toast('Nothing to reuse for this one'); return; }
     setMode(mode);
     const i = { ...j.input };
     if (mode === 'ad') i.prompt = i.notes || '';
     if (mode === 'talk') { i.prompt = i.script || i.topic || ''; i.textMode = i.script ? 'script' : 'topic'; }
+    if (mode === 'voice') i.prompt = i.text || '';
     S.forms[mode] = { ...DEFAULTS[mode](), ...i };
     closeModal(); renderAll();
   };
@@ -682,6 +739,7 @@ async function accountModal() {
   const a = S.app;
   const ledger = await api('/api/ledger');
   if (a.mode === 'local') return localSettings(a, ledger);
+  return creditsModal(a, ledger);
   const packs = CFG.packs || [];
   const m = modal(`<h2>Credits</h2>
     <p style="font-size:38px;font-weight:800;letter-spacing:-.04em;margin:6px 0 2px">✦ ${a.credits.toLocaleString()}</p>
@@ -747,7 +805,17 @@ function poll() {
 function setMode(m) {
   S.mode = m;
 }
-function renderAll() { renderTabs(); renderPresets(); renderComposer(); renderFeed(); }
+function renderAll() {
+  renderTabs();
+  const page = MODES[S.mode]?.page;
+  document.body.dataset.view = S.mode;
+  $('.composer-wrap').hidden = !!page;
+  if (S.mode === 'home') renderHome();
+  else if (S.mode === 'schedule') renderSchedule();
+  else { renderPresets(); renderComposer(); }
+  $('#feed').hidden = S.mode === 'schedule';
+  renderFeed();
+}
 
 document.addEventListener('click', (e) => {
   const t = e.target;
@@ -767,15 +835,23 @@ document.addEventListener('click', (e) => {
   const un = t.closest('[data-unref]');
   if (un) { F()[un.dataset.unref] = null; return renderComposer(); }
   if (t.closest('#go')) return generate();
+  if (t.closest('[data-board]')) return storyboardModal({ input: F() });
+  const tc = t.closest('[data-tag]');
+  if (tc) { const ta = $('#prompt'); const at = ta.selectionStart ?? ta.value.length; ta.value = ta.value.slice(0, at) + tc.dataset.tag + ' ' + ta.value.slice(at); F().prompt = ta.value; ta.focus(); estimate(); return; }
+  const go = t.closest('[data-go]');
+  if (go) { e.preventDefault(); closeModal(); setMode(go.dataset.go); renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const act = t.closest('[data-act]');
+  if (act) { e.preventDefault(); closeModal(); return ACTIONS[act.dataset.act]?.(); }
   if (t.closest('[data-brain]')) return runBrainstorm();
   if (t.closest('[data-brain-last]') && lastBrain) return showBrain(lastBrain, [friendById(lastBrain.ctx.friendId)?.photos?.[0], productById(lastBrain.ctx.productId)?.image].filter(Boolean));
-  if (t.closest('[data-guide-hide]')) { flag('if-guide-hidden', true); return renderPresets(); }
-  if (t.closest('[data-guide-show]')) { flag('if-guide-hidden', false); renderPresets(); return $('#presets').scrollIntoView({ behavior: 'smooth' }); }
+  if (t.closest('[data-guide-hide]')) { flag('if-guide-hidden', true); return S.mode === 'home' ? renderHome() : renderPresets(); }
+  if (t.closest('[data-guide-show]')) { flag('if-guide-hidden', false); if (MODES[S.mode].page && S.mode !== 'home') setMode('home'); renderAll(); return $('#presets').scrollIntoView({ behavior: 'smooth' }); }
   const rl = t.closest('[data-rail]');
   if (rl) { const st = $('#strip'); return st.scrollBy({ left: +rl.dataset.rail * st.clientWidth * 0.8, behavior: 'smooth' }); }
   const pr = t.closest('[data-preset]');
   if (pr) {
     const p = PRESETS[S.mode].find((x) => x.id === pr.dataset.preset);
+    if (p.action === 'clone') return voiceCloneModal();
     const f = F();
     Object.assign(f, p.set);
     if (S.mode === 'image' && (p.id === 'hold' || p.id === 'thumb') && !f.friendId) f.friendId = S.friends[0]?.id || null;

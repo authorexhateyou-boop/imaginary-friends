@@ -4,24 +4,17 @@ An AI content studio for creators and affiliates, like Higgsfield but simpler, w
 Your **friends** (characters made from real photos) keep the same face in every image and video. Your **products** keep
 accurate packaging. One click turns a product into a ready-to-post TikTok Shop / Shopee ad.
 
-## How it works
+## What's inside
 
-One screen, like Higgsfield: pick a mode at the top (**Video · Image · Ad · Talk · Story**), tap a preset,
-attach a friend/product with **＋**, type a prompt in the bar at the bottom and hit **Generate**
-(or Ctrl+Enter). Results land in your feed; click one to watch, download, copy the caption, or reuse its settings.
-
-## Modes
-
-| Tool | What it does | Models (via fal.ai) |
-|---|---|---|
-| 🛍️ **Affiliate Ad** | Product + friend → hook, script, voice-over, lip-synced talking UGC *or* product showcase video, burned captions, caption + hashtags | Script AI → Nano Banana 2 → ElevenLabs → OmniHuman 1.5 / video model |
-| 🎬 **Direct the Shot** | Keyframe with your friend's face → camera-directed video (dolly, orbit, crane, FPV…) or animate your own image | Nano Banana 2 → MiniMax H3 / Seedance 2.0 / Kling 3.0 |
-| 📽️ **Story Video** | One prompt → planned scenes, narration, images, motion, stitched video with captions | Script AI → ElevenLabs → Nano Banana 2 → video model → ffmpeg |
-| 🗣️ **Talking Avatar** | Make a friend say any script (or AI writes one) | ElevenLabs → OmniHuman 1.5 |
-| 🖼️ **Image Studio** | Packshots, lifestyle, flat lays, thumbnails, with friend/product references | Nano Banana 2 (+ edit) |
-| ✍️ **Script Writer** | API only for now (the Ad tool already writes hook, script, caption and hashtags) | Script AI |
-
-Languages: Bahasa Melayu, English, Manglish. Platforms: TikTok Shop, Shopee, Lazada, Instagram Reels.
+- **Home**: bento overview of everything below, plus a 4-step getting-started guide.
+- **Ad** (the money-maker): product + friend/avatar → hook, script, voice, lip-synced or showcase video, captions, hashtags. **Batch: 1, 3 or 5 variations** with different angles in one go. Talking engines: **Fast** (H3 Turbo + voice, cheapest), **Studio** (VEED Fabric), **Premium** (OmniHuman).
+- **Video / Image / Talk**: camera-directed shots, packshots and thumbnails, talking heads.
+- **Story + Storyboard**: plan scene by scene, edit narration/visual/camera, reorder; **edit a finished video and only changed scenes are re-rendered (and charged)**.
+- **Voice studio**: ElevenLabs v3 (audio tags like [excited] [whispers]) and Multilingual, MiniMax voices with a natural Malay accent, **clone your own voice**, sound effects and background music.
+- **AI avatars**: 8 ready-made Malaysian creator personas, or design your own (4 options to pick from). Saved as friends with a consistent face.
+- **Brainstorm**: vision AI studies your photos and prompt, then chat to refine hooks and ideas.
+- **Schedule / auto-post**: connect TikTok, Instagram, Facebook, YouTube and Threads; post now or schedule any creation, with the AI-generated label.
+- **Plans**: monthly subscriptions (Creator RM79 → 1,600 credits) plus one-off top-ups via Stripe (card, FPX, GrabPay).
 
 ## Two ways to run
 

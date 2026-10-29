@@ -6,12 +6,14 @@ import express from 'express';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import Stripe from 'stripe';
-import { config, MODE, PACKS, ROOT } from './lib/config.js';
+import { config, MODE, PACKS, PLANS, ROOT } from './lib/config.js';
 import { store } from './lib/store/index.js';
-import { saveDataUrl, uid as newId } from './lib/media.js';
-import { isMock, falKey, llmModel } from './lib/fal.js';
-import { TOOLS, STYLES, CAMERAS, createJob, expireStale, removeBg, live } from './lib/pipelines.js';
-import { VIDEO_MODELS, VOICES, PRICE } from './lib/models.js';
+import { saveDataUrl, saveAudioDataUrl, uid as newId } from './lib/media.js';
+import { isMock, falKey, llmModel, run as falRun, toRemote } from './lib/fal.js';
+import { TOOLS, STYLES, CAMERAS, createJob, expireStale, removeBg, live, planStory } from './lib/pipelines.js';
+import { VIDEO_MODELS, VOICES, PRICE, TALK_ENGINES, EMOTIONS, MODELS, MARKUP } from './lib/models.js';
+import { AVATAR_PRESETS } from './lib/avatars.js';
+import * as social from './lib/social.js';
 import { PLATFORMS, ANGLES, LANGS } from './lib/prompts.js';
 import { hasFF } from './lib/ffmpeg.js';
 import { securityHeaders, limit } from './lib/security.js';
@@ -58,8 +60,26 @@ async function grant(session) {
   const isNew = await store.recordPayment({
     session_id: session.id, user_id: userId, credits, amount: session.amount_total || 0, currency: session.currency || config.currency,
   });
-  if (isNew) await store.adjust(userId, credits, `Purchased ${credits} credits`, null, true);
+  if (isNew) {
+    const plan = session.metadata?.plan;
+    await store.adjust(userId, credits, plan ? `${PLANS.find((p) => p.id === plan)?.name || 'Plan'} plan · first month` : `Purchased ${credits} credits`, null, true);
+    if (plan || session.customer) await store.setProfile(userId, { ...(plan ? { plan } : {}), ...(session.customer ? { stripe_customer: String(session.customer) } : {}) });
+  }
   return isNew;
+}
+
+// Monthly renewals: add the plan's credits once per paid invoice.
+async function grantRenewal(invoice) {
+  if (invoice.billing_reason !== 'subscription_cycle' || !invoice.paid && invoice.status !== 'paid') return;
+  const meta = invoice.parent?.subscription_details?.metadata || invoice.subscription_details?.metadata || {};
+  const userId = meta.user_id, credits = parseInt(meta.credits, 10);
+  if (!userId || !credits) return;
+  const isNew = await store.recordPayment({ session_id: invoice.id, user_id: userId, credits, amount: invoice.amount_paid || 0, currency: invoice.currency || config.currency });
+  if (isNew) await store.adjust(userId, credits, `${PLANS.find((p) => p.id === meta.plan)?.name || 'Plan'} plan · monthly credits`, null, true);
+}
+async function endPlan(sub) {
+  const userId = sub.metadata?.user_id;
+  if (userId) await store.setProfile(userId, { plan: null });
 }
 
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), wrap(async (req, res) => {
@@ -68,9 +88,9 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), wrap(
   try {
     event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], config.stripeWebhookSecret);
   } catch (e) { throw fail(`Webhook signature failed: ${e.message}`); }
-  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
-    await grant(event.data.object);
-  }
+  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') await grant(event.data.object);
+  if (event.type === 'invoice.paid') await grantRenewal(event.data.object);
+  if (event.type === 'customer.subscription.deleted') await endPlan(event.data.object);
   res.json({ received: true });
 }));
 
@@ -88,6 +108,8 @@ app.get('/api/config', (req, res) => res.json({
   payments: !!stripe,
   currency: config.currency.toUpperCase(),
   packs: PACKS,
+  plans: PLANS,
+  social: social.socialEnabled(),
 }));
 
 // ---------- auth: guest accounts ----------
@@ -123,10 +145,12 @@ app.get('/api/state', wrap(async (req, res) => {
   const profile = await store.getProfile(req.uid);
   res.json({
     userId: req.uid, mode: MODE, mock: isMock(), ffmpeg: hasFF(), credits: profile?.credits ?? 0,
-    llmModel: llmModel(), keySet: !!falKey(), payments: !!stripe,
+    llmModel: llmModel(), keySet: !!falKey(), payments: !!stripe, plan: profile?.plan || null, social: social.socialEnabled(),
     catalog: {
       videoModels: Object.fromEntries(Object.entries(VIDEO_MODELS).map(([k, m]) => [k, { label: m.label, tag: m.tag, perSec: m.perSec }])),
-      voices: VOICES, styles: Object.keys(STYLES), cameras: Object.keys(CAMERAS), price: PRICE,
+      talkEngines: TALK_ENGINES, voices: VOICES, emotions: EMOTIONS, markup: MARKUP,
+      avatars: AVATAR_PRESETS.map(({ id, name, tagline, look }) => ({ id, name, tagline, look })),
+      styles: Object.keys(STYLES), cameras: Object.keys(CAMERAS), price: PRICE,
       platforms: Object.fromEntries(Object.entries(PLATFORMS).map(([k, p]) => [k, p.name])),
       angles: Object.keys(ANGLES), langs: Object.keys(LANGS),
     },
@@ -150,9 +174,22 @@ app.post('/api/settings', wrap(async (req, res) => {
 // ---------- payments ----------
 app.post('/api/checkout', limit('checkout', 15, 10), wrap(async (req, res) => {
   if (!stripe) throw fail('Payments are not set up yet', 501);
+  const base = config.publicUrl || `${req.protocol}://${req.get('host')}`;
+  const plan = PLANS.find((p) => p.id === req.body.plan);
+  if (plan) {
+    const profile = await store.getProfile(req.uid);
+    const meta = { user_id: req.uid, credits: String(plan.credits), plan: plan.id };
+    const s = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ quantity: 1, price_data: { currency: config.currency, unit_amount: Math.round(plan.price * 100), recurring: { interval: 'month' }, product_data: { name: `Kravitas ${plan.name} · ${plan.credits.toLocaleString()} credits / month` } } }],
+      ...(profile?.stripe_customer ? { customer: profile.stripe_customer } : {}),
+      client_reference_id: req.uid, metadata: meta, subscription_data: { metadata: meta },
+      success_url: `${base}/?paid={CHECKOUT_SESSION_ID}`, cancel_url: `${base}/?cancelled=1`,
+    });
+    return res.json({ url: s.url });
+  }
   const pack = PACKS.find((p) => p.id === req.body.pack);
   if (!pack) throw fail('Unknown pack');
-  const base = config.publicUrl || `${req.protocol}://${req.get('host')}`;
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     line_items: [{
@@ -180,6 +217,16 @@ app.post('/api/checkout/verify', wrap(async (req, res) => {
   res.json({ paid: s.payment_status === 'paid', added, credits: s.metadata?.credits });
 }));
 
+// Stripe customer portal: change or cancel the monthly plan.
+app.post('/api/billing/portal', wrap(async (req, res) => {
+  if (!stripe) throw fail('Payments are not set up', 501);
+  const profile = await store.getProfile(req.uid);
+  if (!profile?.stripe_customer) throw fail('No subscription on this account yet');
+  const base = config.publicUrl || `${req.protocol}://${req.get('host')}`;
+  const s = await stripe.billingPortal.sessions.create({ customer: profile.stripe_customer, return_url: `${base}/` });
+  res.json({ url: s.url });
+}));
+
 // ---------- uploads ----------
 app.post('/api/upload', limit('upload', 40, 60), wrap(async (req, res) => res.json({ url: await saveDataUrl(req.body.dataUrl) })));
 
@@ -191,7 +238,7 @@ app.post('/api/friends', limit('create', 30, 60), wrap(async (req, res) => {
   if (!name?.trim()) throw fail('Give your friend a name');
   if (!photos?.length) throw fail('Add at least one photo, it is the face reference');
   const urls = [];
-  for (const p of photos.slice(0, 3)) urls.push(await saveDataUrl(p));
+  for (const p of photos.slice(0, 3)) urls.push(store.isOwnUrl(p) ? p : await saveDataUrl(p));
   res.json(await store.insert('friends', req.uid, { id: newId(), name: name.trim().slice(0, 40), note: String(note || '').slice(0, 200), photos: urls }));
 }));
 app.delete('/api/friends/:id', wrap(async (req, res) => {
@@ -244,16 +291,90 @@ app.post('/api/brainstorm', limit('brainstorm', 30, 60), wrap(async (req, res) =
   }
 }));
 
+// ---------- voices (clone your own) ----------
+app.get('/api/voices', wrap(async (req, res) => res.json(await store.list('voices', req.uid))));
+app.post('/api/voices', limit('voice-clone', 10, 60), wrap(async (req, res) => {
+  const { name, audio, consent } = req.body;
+  if (consent !== true) throw fail('Please confirm this is your voice or you have permission to clone it');
+  if (!name?.trim()) throw fail('Name the voice');
+  const sample = await saveAudioDataUrl(audio);
+  await store.adjust(req.uid, -PRICE.voiceClone, 'Voice clone', null);
+  try {
+    let voiceId, preview = null;
+    if (isMock()) voiceId = 'demo-' + newId();
+    else {
+      const r = await falRun(MODELS.voiceClone, { audio_url: await toRemote(sample), noise_reduction: true, need_volume_normalization: true, text: 'Hai semua! Ini suara saya di Kravitas. Jom buat video pertama kita.' });
+      voiceId = r.custom_voice_id;
+      if (!voiceId) throw new Error('Voice cloning returned no voice. Try a clearer 10–60 second sample.');
+      preview = r.audio?.url || null;
+    }
+    res.json(await store.insert('voices', req.uid, { id: newId(), name: name.trim().slice(0, 40), voice_id: voiceId, sample_url: sample, preview_url: preview }));
+  } catch (e) {
+    await store.adjust(req.uid, PRICE.voiceClone, 'Refund (voice clone failed)', null, true);
+    throw e;
+  }
+}));
+app.delete('/api/voices/:id', wrap(async (req, res) => { await store.remove('voices', req.uid, req.params.id); res.json({ ok: true }); }));
+
+// ---------- storyboard planning ----------
+app.post('/api/storyboard/plan', limit('plan', 40, 60), wrap(async (req, res) => {
+  const { prompt, scenes, lang, tone } = req.body;
+  if (!String(prompt || '').trim()) throw fail('Describe the video first');
+  await store.adjust(req.uid, -PRICE.llm, 'Storyboard plan', null);
+  try {
+    res.json(await planStory({ charge() {} }, { prompt: String(prompt).slice(0, 1000), scenes, lang, tone }));
+  } catch (e) {
+    await store.adjust(req.uid, PRICE.llm, 'Refund (storyboard failed)', null, true);
+    throw e;
+  }
+}));
+
+// ---------- auto-posting ----------
+const needSocial = () => { if (!social.socialEnabled()) throw fail('Auto-posting is not switched on yet (add POSTFORME_API_KEY).', 501); };
+app.get('/api/social/accounts', wrap(async (req, res) => { needSocial(); res.json(await social.listAccounts(req.uid)); }));
+app.post('/api/social/connect', wrap(async (req, res) => { needSocial(); res.json({ url: await social.connectUrl(req.uid, req.body.platform) }); }));
+app.delete('/api/social/accounts/:id', wrap(async (req, res) => { needSocial(); await social.disconnect(req.uid, req.params.id); res.json({ ok: true }); }));
+app.get('/api/social/posts', wrap(async (req, res) => {
+  const posts = await store.list('posts', req.uid);
+  if (social.socialEnabled()) {
+    await Promise.all(posts.filter((p) => p.remoteId && !['processed', 'failed'].includes(p.status)).map(async (p) => {
+      try { Object.assign(p, await social.postStatus(p.remoteId)); await store.update('posts', req.uid, p.id, { status: p.status, results: p.results }); } catch { /* keep last known */ }
+    }));
+  }
+  res.json(posts.sort((a, b) => (b.scheduledAt || b.createdAt) - (a.scheduledAt || a.createdAt)));
+}));
+app.post('/api/social/posts', limit('posts', 60, 60), wrap(async (req, res) => {
+  needSocial();
+  const { jobId, mediaUrl, caption, accountIds, scheduledAt, aiLabel, title } = req.body;
+  const job = await store.getJob(req.uid, jobId);
+  if (!job || !job.outputs.some((o) => o.url === mediaUrl)) throw fail('Pick one of your creations to post');
+  if (!/^https?:\/\//.test(mediaUrl)) throw fail('Posting needs the hosted version of Kravitas (your PC copy has no public link for the video).');
+  if (scheduledAt && new Date(scheduledAt).getTime() < Date.now() - 60_000) throw fail('Pick a time in the future');
+  const r = await social.createPost(req.uid, { caption: String(caption || '').slice(0, 2200), accountIds: accountIds || [], mediaUrl, scheduledAt, aiLabel, title });
+  res.json(await store.insert('posts', req.uid, { id: newId(), remoteId: r.id, status: r.status, platforms: r.platforms, jobId, mediaUrl, caption, scheduledAt: scheduledAt ? new Date(scheduledAt).getTime() : null, aiLabel: !!aiLabel, createdAt: Date.now() }));
+}));
+
 // ---------- jobs ----------
 async function lookups(uid) {
-  const [friends, products] = await Promise.all([store.list('friends', uid), store.list('products', uid)]);
-  return { friends, products, friend: (id) => friends.find((f) => f.id === id), product: (id) => products.find((p) => p.id === id) };
+  const [friends, products, voices] = await Promise.all([store.list('friends', uid), store.list('products', uid), store.list('voices', uid)]);
+  return { friends, products, voices, friend: (id) => friends.find((f) => f.id === id), product: (id) => products.find((p) => p.id === id) };
 }
+const str = (v, n) => String(v ?? '').slice(0, n);
 function cleanInput(input) {
   const i = { ...input };
   for (const k of ['startImage', 'image']) if (i[k] && !store.isOwnUrl(i[k])) delete i[k];
   delete i.refs;
-  for (const k of ['prompt', 'script', 'notes', 'topic', 'tone']) if (typeof i[k] === 'string') i[k] = i[k].slice(0, 2000);
+  for (const k of ['prompt', 'script', 'notes', 'topic', 'tone', 'text']) if (typeof i[k] === 'string') i[k] = i[k].slice(0, k === 'text' ? 5000 : 2000);
+  if (i.variants != null) i.variants = [1, 3, 5].includes(+i.variants) ? +i.variants : 1;
+  if (i.board) {
+    const b = i.board;
+    i.board = {
+      title: str(b.title, 120), caption: str(b.caption, 600), hashtags: (Array.isArray(b.hashtags) ? b.hashtags : []).slice(0, 15).map((h) => str(h, 40)),
+      scenes: (Array.isArray(b.scenes) ? b.scenes : []).slice(0, 8).map((s) => ({ narration: str(s.narration, 400), visual: str(s.visual, 600), motion: str(s.motion, 200) })).filter((s) => s.narration.trim()),
+    };
+    if (!i.board.scenes.length) delete i.board;
+  }
+  if (i.look && typeof i.look === 'object') i.look = Object.fromEntries(Object.entries(i.look).slice(0, 10).map(([k, v]) => [str(k, 20), str(v, 80)]));
   return i;
 }
 
@@ -271,6 +392,7 @@ app.post('/api/jobs', limit('jobs', 60, 60), wrap(async (req, res) => {
   if (running >= config.maxRunningJobs) throw fail(`You already have ${running} generations running. Wait for one to finish.`, 429);
   const input = cleanInput(req.body.input || {});
   const L = await lookups(req.uid);
+  if (input.reuseFrom) L.prev = await store.getJob(req.uid, String(input.reuseFrom)); // reuse unchanged scenes (own jobs only)
   if (input.friendId && !L.friend(input.friendId)) input.friendId = null;
   if (input.productId && !L.product(input.productId)) input.productId = null;
   const job = await createJob({

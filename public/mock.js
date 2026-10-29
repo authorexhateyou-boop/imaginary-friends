@@ -9,22 +9,54 @@
   const hash = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
   const err = (msg, code) => Object.assign(new Error(msg), { code });
 
-  // ---------- catalog (mirrors the server) ----------
+  // ---------- catalog (mirrors the server; credits = cost in US cents x 1.25) ----------
+  const MARKUP = 1.25;
+  const credits = (c) => Math.max(1, Math.ceil(c * MARKUP));
   const VIDEO_MODELS = {
-    'h3-turbo': { label: 'MiniMax H3 Turbo', tag: 'Best value', perSec: 2 },
-    'seedance-fast': { label: 'Seedance 2.0 Fast', tag: 'Native audio', perSec: 12 },
-    'kling-std': { label: 'Kling 3.0 Standard', tag: 'Smooth motion', perSec: 9 },
-    'kling-pro': { label: 'Kling 3.0 Pro', tag: 'Top quality', perSec: 14 },
+    'h3-turbo': { label: 'MiniMax H3 Turbo', tag: 'Best value', cps: 1.5 },
+    'seedance-fast': { label: 'Seedance 2.0 Fast', tag: 'Native audio', cps: 10 },
+    'kling-std': { label: 'Kling 3.0 Standard', tag: 'Smooth motion', cps: 8 },
+    'kling-pro': { label: 'Kling 3.0 Pro', tag: 'Top quality', cps: 14 },
   };
-  const PRICE = { image: 8, llm: 1, removeBg: 1, ttsPer100Chars: 1, avatarPerSec: 16 };
-  const VOICES = ['Aria', 'Sarah', 'Laura', 'Charlotte', 'Alice', 'Matilda', 'Jessica', 'Lily', 'Roger', 'Charlie', 'George', 'Callum', 'River', 'Liam', 'Will', 'Eric', 'Chris', 'Brian', 'Daniel', 'Bill'];
-  const vsec = (m, d) => Math.ceil((VIDEO_MODELS[m] || VIDEO_MODELS['h3-turbo']).perSec * Math.min(10, Math.max(2, d)));
+  for (const m of Object.values(VIDEO_MODELS)) m.perSec = Math.ceil(m.cps * MARKUP * 10) / 10;
+  const TALK_ENGINES = {
+    fast: { label: 'Fast', tag: 'H3 Turbo + voice, up to 10s', centsPerSec: 1.5, maxSec: 10 },
+    studio: { label: 'Studio', tag: 'VEED Fabric lip-sync 480p', centsPerSec: 8, maxSec: 30 },
+    premium: { label: 'Premium', tag: 'OmniHuman 1.5, 720p', centsPerSec: 16, maxSec: 30 },
+  };
+  const PRICE = { image: credits(8), llm: credits(0.5), removeBg: credits(1), voiceClone: credits(100) };
+  const VOICES = {
+    el: ['Aria', 'Sarah', 'Laura', 'Charlotte', 'Alice', 'Matilda', 'Jessica', 'Lily', 'Roger', 'Charlie', 'George', 'Callum', 'River', 'Liam', 'Will', 'Eric', 'Chris', 'Brian', 'Daniel', 'Bill'],
+    mm: ['Lively_Girl', 'Friendly_Person', 'Calm_Woman', 'Sweet_Girl_2', 'Exuberant_Girl', 'Wise_Woman', 'Casual_Guy', 'Deep_Voice_Man', 'Patient_Man', 'Decent_Boy', 'Elegant_Man', 'Determined_Man'],
+  };
+  const EMOTIONS = ['neutral', 'happy', 'surprised', 'sad', 'angry'];
+  const AVATARS = [
+    { id: 'aisyah', name: 'Aisyah', tagline: 'Beauty & skincare', look: { gender: 'woman', age: '20s', skin: 'warm tan', hair: 'pastel hijab', style: 'soft glam, friendly smile', outfit: 'cream blouse', bg: 'bright bedroom vanity' } },
+    { id: 'mei', name: 'Mei', tagline: 'Tech & gadgets', look: { gender: 'woman', age: '20s', skin: 'fair', hair: 'shoulder-length black bob', style: 'clean, confident', outfit: 'black tee', bg: 'minimal desk setup with soft LED light' } },
+    { id: 'hafiz', name: 'Hafiz', tagline: 'Food & kopitiam', look: { gender: 'man', age: '30s', skin: 'medium brown', hair: 'short black hair, light beard', style: 'cheerful, energetic', outfit: 'casual polo', bg: 'busy Malaysian night market' } },
+    { id: 'priya', name: 'Priya', tagline: 'Fashion & lifestyle', look: { gender: 'woman', age: '20s', skin: 'deep brown', hair: 'long wavy black hair', style: 'stylish, expressive', outfit: 'pastel kurta-inspired top', bg: 'sunny cafe' } },
+    { id: 'rosnah', name: 'Puan Rosnah', tagline: 'Mum & home', look: { gender: 'woman', age: '40s', skin: 'warm tan', hair: 'navy hijab', style: 'warm, trustworthy, motherly', outfit: 'floral baju kurung', bg: 'cosy kitchen' } },
+    { id: 'jason', name: 'Jason', tagline: 'Fitness & health', look: { gender: 'man', age: '20s', skin: 'fair', hair: 'short fade', style: 'sporty, motivating', outfit: 'gym tank top', bg: 'bright gym' } },
+    { id: 'arif', name: 'Arif', tagline: 'Auto & men’s gear', look: { gender: 'man', age: '30s', skin: 'medium brown', hair: 'short black hair', style: 'calm, credible', outfit: 'denim jacket', bg: 'garage with a car' } },
+    { id: 'nurul', name: 'Nurul', tagline: 'Gen Z trends', look: { gender: 'woman', age: 'early 20s', skin: 'light tan', hair: 'black hijab', style: 'playful, Gen Z energy', outfit: 'oversized hoodie', bg: 'colourful room with fairy lights' } },
+  ];
+  const clampN = (n, lo, hi) => Math.max(lo, Math.min(hi, Math.round(n)));
+  const vsec = (m, d) => credits((VIDEO_MODELS[m] || VIDEO_MODELS['h3-turbo']).cps * clampN(d, 2, 10));
+  const tts$ = (text) => credits((String(text || '').length / 1000) * 10);
+  const talk$ = (e, sec) => { const x = TALK_ENGINES[e] || TALK_ENGINES.fast; return credits(x.centsPerSec * Math.min(x.maxSec, Math.max(2, sec))); };
+  const words = (sec) => 'x'.repeat(Math.round(sec * 14));
   const ESTIMATE = {
     image: (i) => PRICE.image * (i.count || 1),
     shot: (i) => (i.startImage ? 0 : PRICE.image) + vsec(i.model, i.duration || 5),
-    ugc: (i) => PRICE.llm + PRICE.image + 3 + (i.format === 'talking' ? PRICE.avatarPerSec * (i.seconds || 15) : vsec(i.model, i.seconds || 15)),
-    avatar: (i) => 3 + PRICE.avatarPerSec * Math.max(3, i.script ? i.script.split(/\s+/).length / 2.6 : i.seconds || 15),
-    story: (i) => PRICE.llm + (i.scenes || 4) * (PRICE.image + vsec(i.model, 6) + 2),
+    ugc: (i) => {
+      const n = [1, 3, 5].includes(i.variants) ? i.variants : 1;
+      const sec = i.format === 'talking' ? Math.min(i.seconds || 15, (TALK_ENGINES[i.engine] || TALK_ENGINES.fast).maxSec) : i.seconds || 15;
+      return PRICE.image + n * (PRICE.llm + tts$(words(sec)) + (i.format === 'talking' ? talk$(i.engine, sec) : vsec(i.model, Math.min(10, sec))));
+    },
+    avatar: (i) => { const w = String(i.script || '').trim().split(/\s+/).filter(Boolean).length; const sec = w ? Math.max(3, w / 2.6) : i.seconds || 15; return (i.script ? 0 : PRICE.llm) + tts$(i.script || words(sec)) + talk$(i.engine, sec); },
+    story: (i) => { const sc = i.board?.scenes; const n = sc?.length || i.scenes || 4; return (sc ? 0 : PRICE.llm) + (sc ? sc.reduce((a, x) => a + tts$(x.narration), 0) : n * tts$(words(7))) + n * (PRICE.image + vsec(i.model, 6)); },
+    voice: (i) => (i.kind === 'sfx' ? credits(0.2 * (i.length || 5)) : i.kind === 'music' ? credits(1 * (i.length || 30)) : tts$(i.text || 'x')),
+    avatarGen: (i) => PRICE.image * (i.preset ? 1 : Math.min(4, i.count || 4)),
   };
 
   // ---------- persistence ----------
@@ -234,6 +266,47 @@
     manglish: (p) => `Wah, ${p} this one confirm best lah! One week only already can see the difference. Cheap some more. Tap the yellow basket, go!`,
   };
 
+  // Preview audio: a short synthesized clip (a real voice needs the live server).
+  function synthAudio(kind, seconds, text) {
+    const sr = 22050, n = Math.floor(sr * Math.min(60, Math.max(1, seconds)));
+    const d = new Float32Array(n);
+    const h = hash(text || kind);
+    for (let i = 0; i < n; i++) {
+      const t = i / sr;
+      if (kind === 'music') {
+        const chord = [[220, 277, 330], [196, 247, 294], [174, 220, 262], [196, 247, 330]][Math.floor(t / 2) % 4];
+        const beat = Math.exp(-((t % 0.5) * 18));
+        d[i] = chord.reduce((a, f) => a + Math.sin(2 * Math.PI * f * t), 0) * 0.08 + Math.sin(2 * Math.PI * 55 * t) * beat * 0.4 + (Math.random() * 2 - 1) * Math.exp(-(((t + 0.25) % 0.5) * 40)) * 0.08;
+      } else if (kind === 'sfx') {
+        const e = Math.exp(-t * 4);
+        d[i] = (Math.sin(2 * Math.PI * (880 + 440 * Math.sin(t * 3)) * t) * 0.5 + (Math.random() * 2 - 1) * 0.3) * e;
+      } else {
+        const syl = Math.abs(Math.sin(Math.PI * t * 3.2)); // syllable rhythm
+        const f0 = 160 + (h % 60) + 25 * Math.sin(t * 2.1);
+        d[i] = (Math.sin(2 * Math.PI * f0 * t) * 0.5 + Math.sin(2 * Math.PI * f0 * 2 * t) * 0.25 + Math.sin(2 * Math.PI * f0 * 3.1 * t) * 0.12) * syl * 0.5;
+      }
+    }
+    const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const w = (o, s) => [...s].forEach((c, k) => v.setUint8(o + k, c.charCodeAt(0)));
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, d[i])) * 32767, true);
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+  function planBoard(prompt, n) {
+    n = Math.min(8, Math.max(2, n || 4));
+    const topic = String(prompt || 'your topic');
+    const MOV = ['slow cinematic push-in', 'smooth pan left to right', 'orbit around the subject', 'crane up', 'slow pull back revealing the scene'];
+    return {
+      title: topic.slice(0, 60), caption: `${topic.slice(0, 50)} 🤯 Save this for later!`, hashtags: ['#fyp', '#malaysia', '#faktamenarik'],
+      scenes: Array.from({ length: n }, (_, k) => ({
+        narration: k === 0 ? `Did you know this about ${topic}? Stay till the end.` : k === n - 1 ? 'Follow for more stories like this!' : `Fact ${k}: here is something about ${topic} most people never notice.`,
+        visual: k === 0 ? `Bold opening shot that introduces ${topic}` : `Scene illustrating fact ${k} about ${topic}`,
+        motion: MOV[k % MOV.length],
+      })),
+    };
+  }
+
   function startJob(tool, input) {
     const fr = st.friends.find((f) => f.id === input.friendId) || null;
     const pr = st.products.find((p) => p.id === input.productId) || null;
@@ -243,8 +316,11 @@
     const titles = {
       image: input.prompt?.slice(0, 60) || 'Image', shot: input.prompt?.slice(0, 60) || 'Shot',
       ugc: `${pr?.name || 'Product'} · ${input.format === 'talking' ? 'Talking UGC' : 'Showcase'} ad`,
-      avatar: `${fr?.name || 'Avatar'} talking`, story: input.prompt?.slice(0, 60) || 'Story video',
+      avatar: `${fr?.name || 'Avatar'} talking`, story: input.board?.title || input.prompt?.slice(0, 60) || 'Story video',
+      voice: `${input.kind === 'sfx' ? 'Sound effect' : input.kind === 'music' ? 'Music' : 'Voice-over'} · ${String(input.text || '').slice(0, 50)}`,
+      avatarGen: input.preset ? `Avatar · ${AVATARS.find((a) => a.id === input.preset)?.name}` : `Avatar · ${input.name || 'custom'}`,
     };
+    if (tool === 'ugc') { const n = [1, 3, 5].includes(input.variants) ? input.variants : 1; if (n > 1) titles.ugc += ` ×${n}`; }
     const job = { id: id(), tool, title: titles[tool], input, status: 'running', steps: [], outputs: [], text: null, cost: 0, estimate: est, createdAt: Date.now(), mock: true };
     st.credits -= est;
     st.ledger.unshift({ at: Date.now(), what: job.title, credits: -est, job: job.id });
@@ -275,18 +351,53 @@
         }
         if (tool === 'ugc') {
           const name = pr?.name || 'this product';
-          await step('Writing hook & script', 1200);
-          const script = (SCRIPTS[lang] || SCRIPTS.en)(name);
-          job.text = `HOOK: ${script.split(/[!?.]/)[0]}!\n\nSCRIPT: ${script}${input.notes ? `\n\nMUST MENTION: ${input.notes}` : ''}\n\nCAPTION: ${name} yang viral tu 😍 Worth it ke? Tengok sampai habis!\n\n#fyp #tiktokshopmy #racunshopee #malaysia #review #affiliate`;
+          const n = [1, 3, 5].includes(input.variants) ? input.variants : 1;
+          const ANG = ['review', 'problem', 'deal', 'unboxing', 'compare', 'beforeafter'];
+          const LBL = { review: 'Honest review', problem: 'Problem → fix', deal: 'Flash sale', unboxing: 'Unboxing', compare: 'Vs. pricey one', beforeafter: 'Before & after' };
+          const base = LBL[input.angle] ? input.angle : 'review';
+          const angles = [base, ...ANG.filter((a) => a !== base)].slice(0, n);
+          const OPEN = {
+            ms: { review: `Serius, ${name} ni game changer!`, problem: `Penat dengan masalah yang sama setiap hari?`, deal: `${name} turun harga hari ni je!`, unboxing: `Jom unbox ${name} sama-sama!`, compare: `Kenapa bayar mahal kalau ${name} lagi best?`, beforeafter: `Tengok beza sebelum dan selepas guna ${name}!` },
+            en: { review: `Okay, ${name} actually shocked me.`, problem: `Tired of the same problem every single day?`, deal: `${name} is on sale today only!`, unboxing: `Let's unbox ${name} together!`, compare: `Why pay more when ${name} does it better?`, beforeafter: `Look at the before and after with ${name}!` },
+          };
+          const scripts = angles.map((a) => `${(OPEN[lang] || OPEN.en)[a]} ${(SCRIPTS[lang] || SCRIPTS.en)(name).split(/(?<=[!?.])\s/).slice(1).join(' ')}`);
+          await step(n > 1 ? `Writing ${n} hooks & scripts` : 'Writing hook & script', 1200);
+          job.text = scripts.map((sc, k) => `${n > 1 ? `── V${k + 1} · ${LBL[angles[k]]} ──\n` : ''}HOOK: ${sc.split(/(?<=[!?.])\s/)[0]}\n\nSCRIPT: ${sc}${input.notes ? `\n\nMUST MENTION: ${input.notes}` : ''}\n\nCAPTION: ${name} yang viral tu 😍 Worth it ke? Tengok sampai habis!\n\n#fyp #tiktokshopmy #racunshopee #malaysia #review #affiliate`).join('\n\n');
           job.outputs.push({ type: 'text', url: null, label: 'Script & caption' });
           await step(fr ? `Placing ${fr.name} with the product` : 'Composing product scene', 1400);
           const c = await compose({ prompt: name + input.angle, friend: fr, product: pr, aspect: '9:16', style: 'ugc' });
           await out('image', await toBlob(c), 'Keyframe');
-          await step('Recording voice-over', 900);
-          job.steps.push({ label: input.format === 'talking' ? 'Lip-syncing the creator' : 'Animating product shot', status: 'running' });
-          const v = await record({ frames: [c], seconds: 6, move: input.format === 'talking' ? 'talk' : 'dolly-in', captions: input.captions !== false ? script : '' });
+          await step(n > 1 ? `Recording ${n} voice-overs` : 'Recording voice-over', 900);
+          const eng = (TALK_ENGINES[input.engine] || TALK_ENGINES.fast).label;
+          job.steps.push({ label: input.format === 'talking' ? `Lip-syncing (${eng})` : 'Animating product shots', status: 'running' });
+          for (let k = 0; k < n; k++) {
+            const v = await record({ frames: [c], seconds: n > 1 ? 4 : 6, move: input.format === 'talking' ? 'talk' : ['dolly-in', 'orbit', 'crash', 'pan', 'crane'][k % 5], captions: input.captions !== false ? scripts[k] : '' });
+            if (v) await out('video', v, n > 1 ? `V${k + 1} · ${LBL[angles[k]]}` : 'Final ad');
+          }
           job.steps[job.steps.length - 1].status = 'done';
-          if (v) await out('video', v, 'Final ad');
+        }
+        if (tool === 'voice') {
+          const kind = input.kind || 'tts';
+          await step(kind === 'sfx' ? 'Designing the sound' : kind === 'music' ? 'Composing the track' : 'Recording', 1200);
+          const secs = kind === 'tts' ? Math.max(2, String(input.text).split(/\s+/).length / 2.6) : Math.min(kind === 'sfx' ? 22 : 60, input.length || (kind === 'sfx' ? 5 : 30));
+          job.text = input.text;
+          await out('audio', synthAudio(kind, secs, input.text), kind === 'sfx' ? 'Sound effect' : kind === 'music' ? 'Music' : 'Voice-over');
+        }
+        if (tool === 'avatarGen') {
+          const preset = AVATARS.find((a) => a.id === input.preset);
+          const n = preset ? 1 : Math.min(4, input.count || 4);
+          await step(n > 1 ? `Creating ${n} avatar options` : `Creating ${preset.name}`, 1600);
+          const look = preset ? preset.look : input.look || {};
+          const variants = ['', 'golden hour park', 'studio grey backdrop', 'cosy cafe'];
+          for (let k = 0; k < n; k++) {
+            const url = window.drawPortrait ? drawPortrait({ ...look, bg: k ? variants[k] : look.bg }, 480) : null;
+            if (url) await out('image', await (await fetch(url)).blob(), n > 1 ? `Option ${k + 1}` : preset.name);
+          }
+          if (preset) {
+            const photo = drawPortrait(look, 480);
+            st.friends.unshift({ id: id(), name: preset.name, note: `AI avatar · ${preset.tagline}`, photos: [photo] });
+            job.text = `${preset.name} was added to your friends. Pick them with ＋ in any mode.`;
+          } else job.text = 'Pick the option you like and save it as a friend.';
         }
         if (tool === 'avatar') {
           const script = input.script?.trim() || `Hai semua! Hari ni saya nak share pasal ${input.topic || 'sesuatu yang best'}. Jangan lupa follow untuk lagi tips!`;
@@ -302,23 +413,28 @@
           if (v) await out('video', v, 'Talking video');
         }
         if (tool === 'story') {
-          const n = Math.min(6, input.scenes || 4);
-          await step('Planning scenes & narration', 1200);
-          const lines = Array.from({ length: n }, (_, k) => (k === 0 ? `Did you know this about ${input.prompt}? Stay till the end.` : k === n - 1 ? 'Follow for more stories like this!' : `Part ${k + 1}: here is something most people never notice.`));
-          job.title = input.prompt.slice(0, 60);
-          job.text = lines.map((l, k) => `${k + 1}. ${l}`).join('\n\n') + '\n\n#fyp #malaysia #faktamenarik';
+          let board = input.board;
+          if (!board?.scenes?.length) { await step('Planning scenes & narration', 1200); board = planBoard(input.prompt, input.scenes || 4); }
+          const scenes = board.scenes.slice(0, 8), n = scenes.length;
+          const lines = scenes.map((s) => s.narration);
+          const prev = input.reuseFrom ? st.jobs.find((x) => x.id === input.reuseFrom)?.board?.scenes || [] : [];
+          const reused = scenes.filter((s, k) => prev[k] && JSON.stringify(prev[k]) === JSON.stringify(s)).length;
+          job.title = (board.title || input.prompt || 'Story video').slice(0, 60);
+          job.board = { title: board.title || job.title, caption: board.caption || '', hashtags: board.hashtags || [], scenes };
+          job.text = [job.title, ...lines.map((l, k) => `${k + 1}. ${l}`), board.caption, (board.hashtags || []).join(' ')].filter(Boolean).join('\n\n');
           job.outputs.push({ type: 'text', url: null, label: 'Script & caption' });
-          await step(`Recording ${n} voice-overs`, 900);
+          await step(`Recording voice-overs${reused ? ` (${reused} reused)` : ''}`, 900);
           await step(`Painting ${n} scenes`, 1200);
           const frames = [];
-          for (let k = 0; k < n; k++) { const c = await compose({ prompt: input.prompt + ' scene ' + k, friend: fr, aspect: input.aspect, style: input.style }); frames.push(c); await out('image', await toBlob(c), `Scene ${k + 1}`); }
-          job.steps.push({ label: `Animating ${n} clips & editing`, status: 'running' });
+          for (let k = 0; k < n; k++) { const c = await compose({ prompt: (scenes[k].visual || input.prompt) + k, friend: fr, aspect: input.aspect, style: input.style }); frames.push(c); await out('image', await toBlob(c), `Scene ${k + 1}`); }
+          job.steps.push({ label: `Animating ${n - reused} clip${n - reused === 1 ? '' : 's'} & editing`, status: 'running' });
+          if (reused) job.reusedScenes = reused;
           const v = await record({ frames, aspect: input.aspect, seconds: Math.min(12, n * 2.4), move: 'dolly-in', captions: input.captions !== false ? lines.join(' ') : '' });
           job.steps[job.steps.length - 1].status = 'done';
           if (v) await out('video', v, 'Final video');
         }
         job.status = 'done';
-        job.cost = Math.max(1, Math.round(job.estimate * 0.85));
+        job.cost = Math.max(1, Math.round(job.estimate * (job.reusedScenes ? Math.max(0.15, 1 - job.reusedScenes / (job.board?.scenes.length || 1)) : 0.85)));
       } catch (e) {
         job.status = 'error'; job.error = e.message;
         job.steps.forEach((s) => { if (s.status === 'running') s.status = 'error'; });
@@ -441,8 +557,8 @@
     const p = u.pathname;
     if (p === '/api/state') {
       return {
-        userId: 'preview', mode: 'preview', mock: true, ffmpeg: true, credits: st.credits, llmModel: 'google/gemini-2.5-flash', payments: true,
-        catalog: { videoModels: VIDEO_MODELS, voices: VOICES, price: PRICE, styles: [], cameras: [], platforms: { tiktok: 'TikTok Shop', shopee: 'Shopee', lazada: 'Lazada', instagram: 'Instagram Reels' }, angles: [], langs: ['ms', 'en', 'manglish'] },
+        userId: 'preview', mode: 'preview', mock: true, ffmpeg: true, credits: st.credits, llmModel: 'google/gemini-2.5-flash', payments: true, plan: st.plan || null, social: true,
+        catalog: { videoModels: VIDEO_MODELS, talkEngines: TALK_ENGINES, voices: VOICES, emotions: EMOTIONS, markup: MARKUP, avatars: AVATARS, price: PRICE, styles: [], cameras: [], platforms: { tiktok: 'TikTok Shop', shopee: 'Shopee', lazada: 'Lazada', instagram: 'Instagram Reels' }, angles: [], langs: ['ms', 'en', 'manglish'] },
       };
     }
     if (p === '/api/ledger') return st.ledger.slice(0, 100);
@@ -476,6 +592,46 @@
     }
     if (m) { const j = st.jobs.find((x) => x.id === m[1]); if (!j) throw err('Not found'); return viewJob(j); }
     if (p === '/api/brainstorm') return brainstorm(body);
+    if (p === '/api/storyboard/plan') {
+      if (st.credits < PRICE.llm) throw err('Not enough credits. Top up to continue.', 'credits');
+      await sleep(1400); st.credits -= PRICE.llm; st.ledger.unshift({ at: Date.now(), what: 'Storyboard plan', credits: -PRICE.llm }); save();
+      return planBoard(body.prompt, body.scenes);
+    }
+    if (p === '/api/voices' && method === 'GET') return Promise.all((st.voices || []).map(async (v) => ({ ...v, preview_url: await resolveUrl(v.preview_url) })));
+    if (p === '/api/voices' && method === 'POST') {
+      if (body.consent !== true) throw err('Please confirm this is your voice or you have permission to clone it');
+      if (st.credits < PRICE.voiceClone) throw err('Not enough credits. Top up to continue.', 'credits');
+      await sleep(2000);
+      const v = { id: id(), name: String(body.name || 'My voice').slice(0, 40), voice_id: 'demo', preview_url: await putBlob(synthAudio('tts', 3, body.name)) };
+      (st.voices ||= []).unshift(v); st.credits -= PRICE.voiceClone; st.ledger.unshift({ at: Date.now(), what: 'Voice clone', credits: -PRICE.voiceClone }); save();
+      return v;
+    }
+    m = /^\/api\/voices\/(.+)$/.exec(p);
+    if (m && method === 'DELETE') { st.voices = (st.voices || []).filter((v) => v.id !== m[1]); save(); return { ok: true }; }
+    if (p === '/api/social/accounts' && method === 'GET') return st.accounts || [];
+    if (p === '/api/social/connect') {
+      await sleep(700);
+      const handle = { tiktok: '@kravitas.demo', instagram: '@kravitas.demo', facebook: 'Kravitas Demo Page', youtube: 'Kravitas Demo', threads: '@kravitas.demo' }[body.platform];
+      (st.accounts ||= []).push({ id: id(), platform: body.platform, username: handle }); save();
+      return { url: null };
+    }
+    m = /^\/api\/social\/accounts\/(.+)$/.exec(p);
+    if (m && method === 'DELETE') { st.accounts = (st.accounts || []).filter((a) => a.id !== m[1]); save(); return { ok: true }; }
+    if (p === '/api/social/posts' && method === 'GET') {
+      for (const x of st.posts || []) if (x.status === 'scheduled' && (!x.scheduledAt || x.scheduledAt <= Date.now())) { x.status = 'processed'; x.results = x.platforms.map((pl) => ({ account: pl, success: true, url: null })); }
+      save();
+      return [...(st.posts || [])].sort((a, b) => (b.scheduledAt || b.createdAt) - (a.scheduledAt || a.createdAt));
+    }
+    if (p === '/api/social/posts' && method === 'POST') {
+      const accs = (st.accounts || []).filter((a) => (body.accountIds || []).includes(a.id));
+      if (!accs.length) throw err('Pick at least one connected account');
+      const when = body.scheduledAt ? new Date(body.scheduledAt).getTime() : null;
+      if (when && when < Date.now() - 60000) throw err('Pick a time in the future');
+      const post = { id: id(), status: 'scheduled', platforms: accs.map((a) => a.platform), jobId: body.jobId, caption: body.caption, scheduledAt: when, aiLabel: !!body.aiLabel, createdAt: Date.now() };
+      (st.posts ||= []).unshift(post); save();
+      return post;
+    }
+    if (p === '/api/billing/portal') throw err('Payments are switched off in this preview.');
     throw err('Not available in preview');
   }
 

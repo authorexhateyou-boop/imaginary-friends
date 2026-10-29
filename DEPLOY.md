@@ -11,7 +11,7 @@ About 30 minutes. You need accounts on supabase.com, railway.com, stripe.com and
 ## 1. Supabase (database, guest accounts, file storage)
 
 1. Create a project (region: **Southeast Asia (Singapore)**).
-2. **SQL Editor → New query** → paste all of `supabase/schema.sql` → **Run**. This creates the tables, the credit functions and the public `media` bucket.
+2. **SQL Editor → New query** → paste all of `supabase/schema.sql` → **Run** (run it again after updates; it's safe to re-run). This creates the tables, the credit functions and the public `media` bucket.
 3. **Authentication → Sign In / Providers → Anonymous Sign-Ins → Enable.** This gives every visitor a guest account with no sign-up.
 4. **Project Settings → API**: copy the **Project URL**, the **anon public** key and the **service_role** key. The service_role key is a full-access secret: put it only in Railway, never in the browser or GitHub.
 
@@ -36,15 +36,22 @@ About 30 minutes. You need accounts on supabase.com, railway.com, stripe.com and
 1. Use **Test mode** first. In **Developers → API keys** copy the **Secret key** → Railway `STRIPE_SECRET_KEY`.
 2. **Developers → Webhooks → Add endpoint**:
    - URL: `https://<your-domain>/api/stripe/webhook`
-   - Events: `checkout.session.completed` and `checkout.session.async_payment_succeeded`
+   - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `invoice.paid` (monthly plan renewals) and `customer.subscription.deleted`
    - Copy the **Signing secret** → Railway `STRIPE_WEBHOOK_SECRET`.
-3. **Settings → Payment methods**: turn on **FPX** and **GrabPay** (cards are on by default). Checkout shows whatever you enable there.
+3. **Settings → Payment methods**: turn on **FPX** and **GrabPay** (cards are on by default). Checkout shows whatever you enable there. Note: monthly plans (subscriptions) are paid by card; FPX and GrabPay work for one-off top-ups.
+   **Settings → Billing → Customer portal**: activate it so subscribers can change or cancel their plan from Kravitas.
 4. Test: open the site → click your credits → buy a pack with card `4242 4242 4242 4242` (any future date, any CVC). Credits appear when you return.
 5. When it works, switch Stripe to Live mode and replace both Stripe variables with the live values.
 
+## 5. Auto-posting (Post for Me)
+
+1. Sign up at https://www.postforme.dev (from US$10/month for 1,000 posts, unlimited connected accounts) and create an API key.
+2. Add `POSTFORME_API_KEY` in Railway/Vercel and redeploy. The Schedule tab's Connect buttons then open the real TikTok, Instagram, Facebook, YouTube and Threads logins.
+3. Videos must be on Supabase storage (hosted mode) so the platforms can fetch them. Posting doesn't work from the PC-only version.
+
 ## Pricing
 
-1 credit ≈ US$0.01 of fal.ai cost. The default packs are RM25 → 400, RM59 → 1,000 and RM149 → 2,800 credits. Margins are thin after Stripe fees and exchange rates, so set your own prices with the `PACKS` variable (see `.env.example`). Per-model credit costs are in `lib/models.js`.
+Credits = AI cost in US cents × `CREDIT_MARKUP` (1.25), so 1 credit ≈ US$0.008 of AI cost. Monthly plans: Starter RM35 → 700, **Creator RM79 → 1,600** (RekaLab's price point), Pro RM199 → 4,500 credits. A 10-second talking ad with the Fast engine is about 32 credits, so Creator makes about 50 ads a month. Top-up packs (RM25 → 400, RM59 → 1,000, RM149 → 2,800) cost more per credit. Change them with `PLANS` and `PACKS`; per-model costs are in `lib/models.js`.
 
 ## Admin
 

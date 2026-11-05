@@ -11,7 +11,7 @@ import { store } from './lib/store/index.js';
 import { saveDataUrl, saveAudioDataUrl, uid as newId } from './lib/media.js';
 import { isMock, falKey, llmModel, run as falRun, toRemote } from './lib/fal.js';
 import { TOOLS, STYLES, CAMERAS, createJob, expireStale, removeBg, live, planStory } from './lib/pipelines.js';
-import { VIDEO_MODELS, VOICES, PRICE, TALK_ENGINES, EMOTIONS, MODELS, MARKUP } from './lib/models.js';
+import { VIDEO_MODELS, VOICES, PRICE, TIERS, EMOTIONS, MODELS, MARKUP, MODEL_PLAN, MAX_VARIANTS, allowed } from './lib/models.js';
 import { AVATAR_PRESETS } from './lib/avatars.js';
 import * as social from './lib/social.js';
 import { PLATFORMS, ANGLES, LANGS } from './lib/prompts.js';
@@ -46,8 +46,8 @@ if (process.env.VERCEL && MODE !== 'supabase') {
 
 const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((e) => {
   if (e.message === 'INSUFFICIENT_CREDITS') return res.status(402).json({ error: 'Not enough credits. Top up to continue.', code: 'credits' });
-  console.error(e);
-  res.status(e.status || 400).json({ error: e.message || String(e) });
+  if (!e.status || e.status >= 500) console.error(e);
+  res.status(e.status || 400).json({ error: e.message || String(e), ...(e.code ? { code: e.code } : {}) });
 });
 const fail = (msg, status = 400) => Object.assign(new Error(msg), { status });
 
@@ -140,15 +140,35 @@ app.post('/api/admin/credits', adminOnly, wrap(async (req, res) => {
 
 app.use('/api', auth);
 
+// ---------- plans: what each account may use ----------
+async function planOf(uid) {
+  if (MODE === 'local') return 'pro'; // your own PC: everything unlocked
+  const p = await store.getProfile(uid);
+  return p?.plan || 'free';
+}
+const PLAN_NAME = { starter: 'Starter', creator: 'Creator', pro: 'Pro' };
+const planFail = (what, need) => Object.assign(new Error(`${what} needs the ${PLAN_NAME[need]} plan or higher.`), { status: 403, code: 'plan' });
+function checkPlan(plan, tool, i) {
+  const tier = i.tier && TIERS[i.tier];
+  if (tier && ['ugc', 'avatar', 'story'].includes(tool) && !allowed(plan, tier.plan)) throw planFail(`${tier.label} quality`, tier.plan);
+  if (i.model && ['shot', 'story'].includes(tool) && !(tool === 'story' && (i.tier || 'motion') === 'motion')) {
+    const need = MODEL_PLAN[i.model];
+    if (need && !allowed(plan, need)) throw planFail(VIDEO_MODELS[i.model]?.label || 'That model', need);
+  }
+  if (tool === 'ugc' && (i.variants || 1) > MAX_VARIANTS[plan]) throw planFail(`${i.variants} variations`, 'creator');
+}
+async function needPlan(uid, need, what) { const plan = await planOf(uid); if (!allowed(plan, need)) throw planFail(what, need); }
+
 // ---------- state ----------
 app.get('/api/state', wrap(async (req, res) => {
   const profile = await store.getProfile(req.uid);
   res.json({
     userId: req.uid, mode: MODE, mock: isMock(), ffmpeg: hasFF(), credits: profile?.credits ?? 0,
-    llmModel: llmModel(), keySet: !!falKey(), payments: !!stripe, plan: profile?.plan || null, social: social.socialEnabled(),
+    llmModel: llmModel(), keySet: !!falKey(), payments: !!stripe, plan: profile?.plan || null, access: await planOf(req.uid), social: social.socialEnabled(),
     catalog: {
       videoModels: Object.fromEntries(Object.entries(VIDEO_MODELS).map(([k, m]) => [k, { label: m.label, tag: m.tag, perSec: m.perSec }])),
-      talkEngines: TALK_ENGINES, voices: VOICES, emotions: EMOTIONS, markup: MARKUP,
+      tiers: Object.fromEntries(Object.entries(TIERS).map(([k, t]) => [k, { label: t.label, tag: t.tag, maxSec: t.maxSec, plan: t.plan }])),
+      modelPlan: MODEL_PLAN, maxVariants: MAX_VARIANTS, voices: VOICES, emotions: EMOTIONS, markup: MARKUP,
       avatars: AVATAR_PRESETS.map(({ id, name, tagline, look }) => ({ id, name, tagline, look })),
       styles: Object.keys(STYLES), cameras: Object.keys(CAMERAS), price: PRICE,
       platforms: Object.fromEntries(Object.entries(PLATFORMS).map(([k, p]) => [k, p.name])),
@@ -297,6 +317,7 @@ app.post('/api/voices', limit('voice-clone', 10, 60), wrap(async (req, res) => {
   const { name, audio, consent } = req.body;
   if (consent !== true) throw fail('Please confirm this is your voice or you have permission to clone it');
   if (!name?.trim()) throw fail('Name the voice');
+  await needPlan(req.uid, 'creator', 'Voice cloning');
   const sample = await saveAudioDataUrl(audio);
   await store.adjust(req.uid, -PRICE.voiceClone, 'Voice clone', null);
   try {
@@ -332,7 +353,7 @@ app.post('/api/storyboard/plan', limit('plan', 40, 60), wrap(async (req, res) =>
 // ---------- auto-posting ----------
 const needSocial = () => { if (!social.socialEnabled()) throw fail('Auto-posting is not switched on yet (add POSTFORME_API_KEY).', 501); };
 app.get('/api/social/accounts', wrap(async (req, res) => { needSocial(); res.json(await social.listAccounts(req.uid)); }));
-app.post('/api/social/connect', wrap(async (req, res) => { needSocial(); res.json({ url: await social.connectUrl(req.uid, req.body.platform) }); }));
+app.post('/api/social/connect', wrap(async (req, res) => { needSocial(); await needPlan(req.uid, 'creator', 'Auto-posting'); res.json({ url: await social.connectUrl(req.uid, req.body.platform) }); }));
 app.delete('/api/social/accounts/:id', wrap(async (req, res) => { needSocial(); await social.disconnect(req.uid, req.params.id); res.json({ ok: true }); }));
 app.get('/api/social/posts', wrap(async (req, res) => {
   const posts = await store.list('posts', req.uid);
@@ -366,6 +387,9 @@ function cleanInput(input) {
   delete i.refs;
   for (const k of ['prompt', 'script', 'notes', 'topic', 'tone', 'text']) if (typeof i[k] === 'string') i[k] = i[k].slice(0, k === 'text' ? 5000 : 2000);
   if (i.variants != null) i.variants = [1, 3, 5].includes(+i.variants) ? +i.variants : 1;
+  if (i.scripts != null) i.scripts = (Array.isArray(i.scripts) ? i.scripts : []).slice(0, 5).map((x) => str(x, 1200));
+  for (const k of ['fromDraft', 'reuseFrom', 'tier']) if (i[k] != null) i[k] = str(i[k], 40);
+  i.draft = i.draft === true && !i.fromDraft;
   if (i.board) {
     const b = i.board;
     i.board = {
@@ -392,7 +416,9 @@ app.post('/api/jobs', limit('jobs', 60, 60), wrap(async (req, res) => {
   if (running >= config.maxRunningJobs) throw fail(`You already have ${running} generations running. Wait for one to finish.`, 429);
   const input = cleanInput(req.body.input || {});
   const L = await lookups(req.uid);
+  checkPlan(await planOf(req.uid), req.body.tool, input);
   if (input.reuseFrom) L.prev = await store.getJob(req.uid, String(input.reuseFrom)); // reuse unchanged scenes (own jobs only)
+  if (input.fromDraft) { L.prev = await store.getJob(req.uid, String(input.fromDraft)); if (!L.prev) throw fail('That draft was not found'); }
   if (input.friendId && !L.friend(input.friendId)) input.friendId = null;
   if (input.productId && !L.product(input.productId)) input.productId = null;
   const job = await createJob({

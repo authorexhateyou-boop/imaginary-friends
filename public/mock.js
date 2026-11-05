@@ -9,8 +9,8 @@
   const hash = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
   const err = (msg, code) => Object.assign(new Error(msg), { code });
 
-  // ---------- catalog (mirrors the server; credits = cost in US cents x 1.25) ----------
-  const MARKUP = 1.25;
+  // ---------- catalog (mirrors the server; credits = cost in US cents x 1.9) ----------
+  const MARKUP = 1.9;
   const credits = (c) => Math.max(1, Math.ceil(c * MARKUP));
   const VIDEO_MODELS = {
     'h3-turbo': { label: 'MiniMax H3 Turbo', tag: 'Best value', cps: 1.5 },
@@ -19,12 +19,20 @@
     'kling-pro': { label: 'Kling 3.0 Pro', tag: 'Top quality', cps: 14 },
   };
   for (const m of Object.values(VIDEO_MODELS)) m.perSec = Math.ceil(m.cps * MARKUP * 10) / 10;
-  const TALK_ENGINES = {
-    fast: { label: 'Fast', tag: 'H3 Turbo + voice, up to 10s', centsPerSec: 1.5, maxSec: 10 },
-    studio: { label: 'Studio', tag: 'VEED Fabric lip-sync 480p', centsPerSec: 8, maxSec: 30 },
-    premium: { label: 'Premium', tag: 'OmniHuman 1.5, 720p', centsPerSec: 16, maxSec: 30 },
+  const TIERS = {
+    motion: { label: 'Motion', tag: 'Animated still + voice, no AI video', image: 'lite', voice: 'turbo', maxSec: 30, talk: 0, show: 0, plan: 'free' },
+    lite: { label: 'Lite', tag: 'Cheap AI video, up to 8s', image: 'lite', voice: 'turbo', maxSec: 8, talk: 1.5, show: 1.5, plan: 'free' },
+    fast: { label: 'Fast', tag: 'Sharper image, up to 10s', image: 'full', voice: 'hd', maxSec: 10, talk: 1.5, show: 1.5, plan: 'free' },
+    studio: { label: 'Studio', tag: 'Real lip-sync (VEED) · Kling', image: 'full', voice: 'hd', maxSec: 30, talk: 8, show: 8, plan: 'creator' },
+    premium: { label: 'Premium', tag: 'OmniHuman 720p · Kling Pro', image: 'full', voice: 'hd', maxSec: 30, talk: 16, show: 14, plan: 'pro' },
   };
-  const PRICE = { image: credits(8), llm: credits(0.5), removeBg: credits(1), voiceClone: credits(100) };
+  const tierOf = (k) => TIERS[k] || TIERS.lite;
+  const RANK = { free: 0, starter: 1, creator: 2, pro: 3 };
+  const MODEL_PLAN = { 'h3-turbo': 'free', 'seedance-fast': 'creator', 'kling-std': 'creator', 'kling-pro': 'pro' };
+  const MAX_VARIANTS = { free: 3, starter: 3, creator: 5, pro: 5 };
+  const PLAN_NAME = { starter: 'Starter', creator: 'Creator', pro: 'Pro' };
+  const PLAN_CREDITS = { starter: 1000, creator: 2500, pro: 6500 };
+  const PRICE = { image: credits(8), imageLite: credits(3), imageSchnell: credits(0.5), llm: credits(0.5), removeBg: credits(1), voiceClone: credits(100) };
   const VOICES = {
     el: ['Aria', 'Sarah', 'Laura', 'Charlotte', 'Alice', 'Matilda', 'Jessica', 'Lily', 'Roger', 'Charlie', 'George', 'Callum', 'River', 'Liam', 'Will', 'Eric', 'Chris', 'Brian', 'Daniel', 'Bill'],
     mm: ['Lively_Girl', 'Friendly_Person', 'Calm_Woman', 'Sweet_Girl_2', 'Exuberant_Girl', 'Wise_Woman', 'Casual_Guy', 'Deep_Voice_Man', 'Patient_Man', 'Decent_Boy', 'Elegant_Man', 'Determined_Man'],
@@ -42,19 +50,24 @@
   ];
   const clampN = (n, lo, hi) => Math.max(lo, Math.min(hi, Math.round(n)));
   const vsec = (m, d) => credits((VIDEO_MODELS[m] || VIDEO_MODELS['h3-turbo']).cps * clampN(d, 2, 10));
-  const tts$ = (text) => credits((String(text || '').length / 1000) * 10);
-  const talk$ = (e, sec) => { const x = TALK_ENGINES[e] || TALK_ENGINES.fast; return credits(x.centsPerSec * Math.min(x.maxSec, Math.max(2, sec))); };
+  const tts$ = (text, q = 'hd') => credits((String(text || '').length / 1000) * (q === 'turbo' ? 6 : 10));
+  const tsec = (k, sec) => Math.min(tierOf(k).maxSec, Math.max(2, sec || 8));
+  const talk$ = (k, sec) => { const t = tierOf(k); return t.talk ? credits(t.talk * tsec(k, sec)) : 0; };
+  const show$ = (k, sec) => { const t = tierOf(k); return t.show ? credits(t.show * Math.min(10, tsec(k, sec))) : 0; };
+  const img$ = (q, refs = true) => (q === 'lite' ? (refs ? PRICE.imageLite : PRICE.imageSchnell) : PRICE.image);
   const words = (sec) => 'x'.repeat(Math.round(sec * 14));
   const ESTIMATE = {
     image: (i) => PRICE.image * (i.count || 1),
     shot: (i) => (i.startImage ? 0 : PRICE.image) + vsec(i.model, i.duration || 5),
     ugc: (i) => {
-      const n = [1, 3, 5].includes(i.variants) ? i.variants : 1;
-      const sec = i.format === 'talking' ? Math.min(i.seconds || 15, (TALK_ENGINES[i.engine] || TALK_ENGINES.fast).maxSec) : i.seconds || 15;
-      return PRICE.image + n * (PRICE.llm + tts$(words(sec)) + (i.format === 'talking' ? talk$(i.engine, sec) : vsec(i.model, Math.min(10, sec))));
+      const t = tierOf(i.tier), n = [1, 3, 5].includes(i.variants) ? i.variants : 1;
+      const sec = i.format === 'talking' ? tsec(i.tier, i.seconds) : i.seconds || 15;
+      const prep = n * PRICE.llm + img$(t.image, true);
+      const render = n * (tts$(words(sec), t.voice) + (i.format === 'talking' ? talk$(i.tier, sec) : show$(i.tier, sec)));
+      return i.draft ? prep : i.fromDraft ? render : prep + render;
     },
-    avatar: (i) => { const w = String(i.script || '').trim().split(/\s+/).filter(Boolean).length; const sec = w ? Math.max(3, w / 2.6) : i.seconds || 15; return (i.script ? 0 : PRICE.llm) + tts$(i.script || words(sec)) + talk$(i.engine, sec); },
-    story: (i) => { const sc = i.board?.scenes; const n = sc?.length || i.scenes || 4; return (sc ? 0 : PRICE.llm) + (sc ? sc.reduce((a, x) => a + tts$(x.narration), 0) : n * tts$(words(7))) + n * (PRICE.image + vsec(i.model, 6)); },
+    avatar: (i) => { const t = tierOf(i.tier); const w = String(i.script || '').trim().split(/\s+/).filter(Boolean).length; const sec = w ? Math.max(3, w / 2.6) : i.seconds || 8; return (i.script ? 0 : PRICE.llm) + tts$(i.script || words(sec), t.voice) + talk$(i.tier, sec); },
+    story: (i) => { const t = tierOf(i.tier || 'motion'); const sc = i.board?.scenes; const n = sc?.length || i.scenes || 4; return (sc ? 0 : PRICE.llm) + (sc ? sc.reduce((a, x) => a + tts$(x.narration, t.voice), 0) : n * tts$(words(7), t.voice)) + n * (img$(t.image, false) + (i.tier === 'motion' || !i.tier ? 0 : vsec(i.model, 6))); },
     voice: (i) => (i.kind === 'sfx' ? credits(0.2 * (i.length || 5)) : i.kind === 'music' ? credits(1 * (i.length || 30)) : tts$(i.text || 'x')),
     avatarGen: (i) => PRICE.image * (i.preset ? 1 : Math.min(4, i.count || 4)),
   };
@@ -310,6 +323,14 @@
   function startJob(tool, input) {
     const fr = st.friends.find((f) => f.id === input.friendId) || null;
     const pr = st.products.find((p) => p.id === input.productId) || null;
+    const plan = st.plan || 'free', T = tierOf(input.tier);
+    const lock = (need, what) => { if ((RANK[plan] ?? 0) < (RANK[need] ?? 0)) throw err(`${what} is on the ${PLAN_NAME[need]} plan. Upgrade to use it.`, 'plan'); };
+    if (['ugc', 'avatar', 'story'].includes(tool) && input.tier) lock(T.plan, `${T.label} quality`);
+    if (input.model && !(tool === 'story' && (input.tier || 'motion') === 'motion')) lock(MODEL_PLAN[input.model] || 'free', VIDEO_MODELS[input.model]?.label || 'That model');
+    if (tool === 'ugc' && (input.variants || 1) > MAX_VARIANTS[plan]) lock('creator', `${input.variants} variations`);
+    const prevDraft = input.fromDraft ? st.jobs.find((x) => x.id === input.fromDraft) : null;
+    if (input.fromDraft && !(prevDraft?.stage === 'review' && prevDraft.draftData)) throw err('That draft is no longer available. Make a new one.');
+    if (input.fromDraft) input.draft = false;
     const est = Math.ceil(ESTIMATE[tool](input));
     if (st.credits < est) throw err('Not enough credits. Top up to continue.', 'credits');
     if ([...live.values()].length >= 3) throw err('You already have 3 generations running. Wait for one to finish.');
@@ -360,21 +381,31 @@
             ms: { review: `Serius, ${name} ni game changer!`, problem: `Penat dengan masalah yang sama setiap hari?`, deal: `${name} turun harga hari ni je!`, unboxing: `Jom unbox ${name} sama-sama!`, compare: `Kenapa bayar mahal kalau ${name} lagi best?`, beforeafter: `Tengok beza sebelum dan selepas guna ${name}!` },
             en: { review: `Okay, ${name} actually shocked me.`, problem: `Tired of the same problem every single day?`, deal: `${name} is on sale today only!`, unboxing: `Let's unbox ${name} together!`, compare: `Why pay more when ${name} does it better?`, beforeafter: `Look at the before and after with ${name}!` },
           };
-          const scripts = angles.map((a) => `${(OPEN[lang] || OPEN.en)[a]} ${(SCRIPTS[lang] || SCRIPTS.en)(name).split(/(?<=[!?.])\s/).slice(1).join(' ')}`);
-          await step(n > 1 ? `Writing ${n} hooks & scripts` : 'Writing hook & script', 1200);
+          let scripts = angles.map((a) => `${(OPEN[lang] || OPEN.en)[a]} ${(SCRIPTS[lang] || SCRIPTS.en)(name).split(/(?<=[!?.])\s/).slice(1).join(' ')}`);
+          if (prevDraft) scripts = prevDraft.draftData.plans.map((pl, k) => String(input.scripts?.[k] || '').trim() || pl.script);
+          else await step(n > 1 ? `Writing ${n} hooks & scripts` : 'Writing hook & script', 1200);
           job.text = scripts.map((sc, k) => `${n > 1 ? `── V${k + 1} · ${LBL[angles[k]]} ──\n` : ''}HOOK: ${sc.split(/(?<=[!?.])\s/)[0]}\n\nSCRIPT: ${sc}${input.notes ? `\n\nMUST MENTION: ${input.notes}` : ''}\n\nCAPTION: ${name} yang viral tu 😍 Worth it ke? Tengok sampai habis!\n\n#fyp #tiktokshopmy #racunshopee #malaysia #review #affiliate`).join('\n\n');
           job.outputs.push({ type: 'text', url: null, label: 'Script & caption' });
-          await step(fr ? `Placing ${fr.name} with the product` : 'Composing product scene', 1400);
-          const c = await compose({ prompt: name + input.angle, friend: fr, product: pr, aspect: '9:16', style: 'ugc' });
+          let c;
+          if (prevDraft) { const im = await loadImg(await resolveUrl(prevDraft.outputs.find((o) => o.type === 'image')?.url)); if (im) { c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); } job.fromDraft = prevDraft.id; }
+          if (!c) {
+            await step(fr ? `Placing ${fr.name} with the product` : 'Composing product scene', 1400);
+            c = await compose({ prompt: name + input.angle, friend: fr, product: pr, aspect: '9:16', style: 'ugc' });
+          }
           await out('image', await toBlob(c), 'Keyframe');
+          if (input.draft) {
+            job.stage = 'review';
+            job.draftData = { plans: scripts.map((script) => ({ script })), angles: angles.map((a) => LBL[a]) };
+          } else {
           await step(n > 1 ? `Recording ${n} voice-overs` : 'Recording voice-over', 900);
-          const eng = (TALK_ENGINES[input.engine] || TALK_ENGINES.fast).label;
-          job.steps.push({ label: input.format === 'talking' ? `Lip-syncing (${eng})` : 'Animating product shots', status: 'running' });
+          const eng = T.label;
+          job.steps.push({ label: input.format === 'talking' ? (T.talk ? `Animating (${eng})` : 'Animating (Motion)') : 'Animating product shots', status: 'running' });
           for (let k = 0; k < n; k++) {
             const v = await record({ frames: [c], seconds: n > 1 ? 4 : 6, move: input.format === 'talking' ? 'talk' : ['dolly-in', 'orbit', 'crash', 'pan', 'crane'][k % 5], captions: input.captions !== false ? scripts[k] : '' });
             if (v) await out('video', v, n > 1 ? `V${k + 1} · ${LBL[angles[k]]}` : 'Final ad');
           }
           job.steps[job.steps.length - 1].status = 'done';
+          }
         }
         if (tool === 'voice') {
           const kind = input.kind || 'tts';
@@ -558,13 +589,21 @@
     if (p === '/api/state') {
       return {
         userId: 'preview', mode: 'preview', mock: true, ffmpeg: true, credits: st.credits, llmModel: 'google/gemini-2.5-flash', payments: true, plan: st.plan || null, social: true,
-        catalog: { videoModels: VIDEO_MODELS, talkEngines: TALK_ENGINES, voices: VOICES, emotions: EMOTIONS, markup: MARKUP, avatars: AVATARS, price: PRICE, styles: [], cameras: [], platforms: { tiktok: 'TikTok Shop', shopee: 'Shopee', lazada: 'Lazada', instagram: 'Instagram Reels' }, angles: [], langs: ['ms', 'en', 'manglish'] },
+        access: st.plan || 'free',
+        catalog: { videoModels: VIDEO_MODELS, tiers: TIERS, modelPlan: MODEL_PLAN, maxVariants: MAX_VARIANTS, voices: VOICES, emotions: EMOTIONS, markup: MARKUP, avatars: AVATARS, price: PRICE, styles: [], cameras: [], platforms: { tiktok: 'TikTok Shop', shopee: 'Shopee', lazada: 'Lazada', instagram: 'Instagram Reels' }, angles: [], langs: ['ms', 'en', 'manglish'] },
       };
     }
     if (p === '/api/ledger') return st.ledger.slice(0, 100);
     if (p === '/api/upload') return { url: body.dataUrl };
     if (p === '/api/estimate') return { credits: Math.ceil((ESTIMATE[body.tool] || (() => 0))(body.input || {})) };
-    if (p === '/api/checkout') throw err('Payments are switched off in this preview.');
+    if (p === '/api/checkout') {
+      // Preview: simulate a successful subscription so plan limits can be tested. Packs stay off.
+      if (!body.plan || !PLAN_CREDITS[body.plan]) throw err('Top-ups are switched off in this preview. Try a plan to unlock its features.');
+      st.plan = body.plan; st.credits += PLAN_CREDITS[body.plan];
+      st.ledger.unshift({ at: Date.now(), what: `${PLAN_NAME[body.plan]} plan (preview)`, credits: PLAN_CREDITS[body.plan] }); save();
+      return { url: location.pathname + location.search };
+    }
+    if (p === '/api/billing/portal') { st.plan = null; save(); return { url: location.pathname + location.search }; }
     if (p === '/api/settings') throw err('Settings are not available in the preview.');
     if (p === '/api/friends' && method === 'GET') return st.friends;
     if (p === '/api/friends' && method === 'POST') {

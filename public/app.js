@@ -22,12 +22,12 @@ async function initSession() {
   if (CFG.mode === 'preview') {
     await loadScript('mock.js');
     Object.assign(CFG, { payments: true, social: true, currency: 'MYR', plans: CFG.plans || [
-      { id: 'starter', name: 'Starter', credits: 700, price: 35 },
-      { id: 'creator', name: 'Creator', credits: 1600, price: 79, tag: 'Popular' },
-      { id: 'pro', name: 'Pro', credits: 4500, price: 199, tag: 'Best value' }], packs: CFG.packs || [
-      { id: 'starter', name: 'Starter', credits: 400, price: 25 },
-      { id: 'creator', name: 'Creator', credits: 1000, price: 59, tag: 'Popular' },
-      { id: 'pro', name: 'Pro', credits: 2800, price: 149, tag: 'Best value' }] });
+      { id: 'starter', name: 'Starter', credits: 1000, price: 59, features: ['Motion, Lite & Fast quality', 'Up to 3 variations per ad', 'All voices + brainstorm'] },
+      { id: 'creator', name: 'Creator', credits: 2500, price: 129, tag: 'Popular', features: ['Everything in Starter', 'Studio lip-sync + Kling', '5 variations per ad', 'Voice cloning & auto-post'] },
+      { id: 'pro', name: 'Pro', credits: 6500, price: 299, tag: 'Best value', features: ['Everything in Creator', 'Premium lip-sync (OmniHuman)', 'Kling Pro video'] }], packs: CFG.packs || [
+      { id: 'small', name: 'Small', credits: 300, price: 25 },
+      { id: 'medium', name: 'Medium', credits: 800, price: 59, tag: 'Popular' },
+      { id: 'large', name: 'Large', credits: 2000, price: 129 }] });
     return;
   }
   if (CFG.mode !== 'supabase') return;
@@ -135,9 +135,9 @@ const PRESETS = {
 const DEFAULTS = {
   video: () => ({ prompt: '', friendId: null, productId: null, startImage: null, camera: 'dolly-in', style: 'cinematic', model: 'h3-turbo', duration: 5, aspect: '9:16', audio: false }),
   image: () => ({ prompt: '', friendId: null, productId: null, style: 'photo', aspect: '9:16', count: 2 }),
-  ad: () => ({ prompt: '', friendId: null, productId: null, format: 'talking', engine: 'fast', variants: 1, angle: 'review', platform: 'tiktok', lang: 'ms', seconds: 10, voice: 'mm:Lively_Girl', model: 'h3-turbo', captions: true }),
-  talk: () => ({ prompt: '', friendId: null, image: null, textMode: 'script', engine: 'fast', lang: 'ms', voice: 'mm:Lively_Girl', captions: true, seconds: 10 }),
-  story: () => ({ prompt: '', friendId: null, scenes: 4, aspect: '9:16', style: 'cinematic', lang: 'en', voice: 'el:Aria', model: 'h3-turbo', captions: true }),
+  ad: () => ({ prompt: '', friendId: null, productId: null, format: 'talking', tier: 'lite', approve: true, variants: 1, angle: 'review', platform: 'tiktok', lang: 'ms', seconds: 8, voice: 'mm:Lively_Girl', captions: true }),
+  talk: () => ({ prompt: '', friendId: null, image: null, textMode: 'script', tier: 'lite', lang: 'ms', voice: 'mm:Lively_Girl', captions: true, seconds: 8 }),
+  story: () => ({ prompt: '', friendId: null, scenes: 4, tier: 'motion', aspect: '9:16', style: 'cinematic', lang: 'en', voice: 'el:Aria', model: 'h3-turbo', captions: true }),
   voice: () => ({ prompt: '', kind: 'tts', voice: 'el:Aria', voiceEngine: 'v3', emotion: 'neutral', speed: 1, lang: 'ms', length: 30 }),
   home: () => ({}), schedule: () => ({}),
 };
@@ -269,7 +269,7 @@ async function runBrainstorm() {
     clearInterval(t);
     closeModal();
     toast(e.message, true);
-    if (e.code === 'credits') accountModal();
+    if (e.code === 'credits' || e.code === 'plan') accountModal();
   }
 }
 
@@ -328,7 +328,7 @@ function showBrain(b, thumbs) {
       b.chat.pop();
       input.value = text;
       toast(e.message, true);
-      if (e.code === 'credits') accountModal();
+      if (e.code === 'credits' || e.code === 'plan') accountModal();
     }
     thread.innerHTML = chatHTML(b);
     thread.scrollTop = thread.scrollHeight;
@@ -371,6 +371,10 @@ function cardHTML(j) {
   const t = thumbOf(j);
   const ratio = (j.input?.aspect || (['ugc', 'avatar'].includes(j.tool) ? '9:16' : j.tool === 'avatarGen' ? '4/5' : '1:1')).replace(':', '/');
   const label = MODES[TOOL_MODE[j.tool]]?.label || TOOL_LABEL[j.tool] || j.tool;
+  if (j.stage === 'review' && j.status === 'done') {
+    const img = j.outputs.find((o) => o.type === 'image');
+    return `<div class="card review" data-job="${j.id}">${img ? `<img src="${img.url}" loading="lazy" alt="">` : ''}<span class="tag">Draft</span><div class="rv"><b>Review & approve</b><small>Scripts + keyframe ready. Tap to edit and render.</small></div></div>`;
+  }
   if (j.status === 'running' || j.status === 'error' || !t) {
     const cur = j.steps.find((s) => s.status === 'running') || j.steps[j.steps.length - 1];
     const pct = j.steps.length ? Math.round((j.steps.filter((s) => s.status === 'done').length / (j.steps.length + 1)) * 100) : 5;
@@ -421,7 +425,7 @@ function pillOptions(key) {
   return {
     model: models, camera: CAM, style: STYLE, lang: LANG, platform: PLATFORM,
     voice: voiceOptions(),
-    engine: Object.fromEntries(Object.entries(c.talkEngines || {}).map(([k, e]) => [k, e.label])),
+    tier: Object.fromEntries(Object.entries(c.tiers || {}).map(([k, t]) => [k, t.label])),
     variants: { 1: '1 ad', 3: '3 variations', 5: '5 variations' },
     kind: { tts: 'Voice-over', sfx: 'Sound effect', music: 'Music' },
     voiceEngine: { v3: 'ElevenLabs v3 · expressive', multilingual: 'ElevenLabs Multilingual' },
@@ -429,7 +433,7 @@ function pillOptions(key) {
     length: F().kind === 'sfx' ? { 2: '2s', 5: '5s', 10: '10s', 20: '20s' } : { 15: '15s', 30: '30s', 60: '1 min', 120: '2 min' },
     aspect: { '9:16': '9:16', '16:9': '16:9', '1:1': '1:1', '4:5': '4:5' },
     duration: { 5: '5s', 8: '8s', 10: '10s' },
-    seconds: { 10: '10s', 15: '15s', 20: '20s', 30: '30s' },
+    seconds: { 8: '8s', 10: '10s', 15: '15s', 20: '20s', 30: '30s' },
     count: { 1: '1', 2: '2', 4: '4' },
     scenes: { 3: '3', 4: '4', 5: '5', 6: '6' },
     format: { talking: 'Talking UGC', showcase: 'Showcase b-roll' },
@@ -438,7 +442,20 @@ function pillOptions(key) {
   }[key];
 }
 const MODEL_SUB = () => Object.fromEntries(Object.entries(S.app.catalog.videoModels).map(([k, m]) => [k, `${m.tag} · ~${m.perSec} cr/s`]));
-const ENGINE_SUB = () => Object.fromEntries(Object.entries(S.app.catalog.talkEngines || {}).map(([k, e]) => [k, `${e.tag} · ~${Math.ceil(e.centsPerSec * (S.app.catalog.markup || 1.25) * 10) / 10} cr/s`]));
+const TIER_SUB = () => Object.fromEntries(Object.entries(S.app.catalog.tiers || {}).map(([k, t]) => [k, `${t.tag} · ${TIER_COST[k] || ''}`]));
+const TIER_COST = { motion: '≈ 9 cr per ad', lite: '≈ 32 cr', fast: '≈ 49 cr', studio: '≈ 170 cr', premium: '≈ 320 cr' };
+// ---------- plan access (what the current plan unlocks) ----------
+const RANK = { free: 0, starter: 1, creator: 2, pro: 3 };
+const PLAN_LABEL = { starter: 'Starter', creator: 'Creator', pro: 'Pro' };
+const access = () => S.app?.access || 'free';
+const canUse = (need) => (RANK[access()] ?? 0) >= (RANK[need] ?? 0);
+function needFor(key, v) {
+  const c = S.app.catalog;
+  if (key === 'tier') return c.tiers?.[v]?.plan;
+  if (key === 'model') return c.modelPlan?.[v];
+  if (key === 'variants') return v > (c.maxVariants?.[access()] || 3) ? 'creator' : null;
+  return null;
+}
 // Voices: ElevenLabs (el:), MiniMax with a Malay accent (mm:), and the user's own clones (clone:)
 function voiceOptions() {
   const v = S.app.catalog.voices || {};
@@ -465,9 +482,9 @@ function renderComposer(keepFocus) {
   const pills = {
     video: [P('model', ''), P('aspect', ''), P('duration', ''), P('camera', '🎥'), f.startImage ? '' : P('style', ''), f.model !== 'h3-turbo' ? toggle('audio', 'Sound', f.audio) : ''],
     image: [P('aspect', ''), P('count', '×'), P('style', '')],
-    ad: [P('format', ''), f.format === 'talking' ? P('engine', '👄') : P('model', ''), P('variants', '×'), P('angle', ''), P('platform', ''), P('lang', ''), P('seconds', ''), P('voice', '🎙'), toggle('captions', 'Captions', f.captions)],
-    talk: [P('textMode', ''), P('engine', '👄'), P('lang', ''), P('voice', '🎙'), f.textMode === 'topic' ? P('seconds', '') : '', toggle('captions', 'Captions', f.captions)],
-    story: ['<button class="pill brainbtn" data-board title="Plan and edit the video scene by scene">🧩 Storyboard</button>', P('scenes', 'Scenes'), P('aspect', ''), P('style', ''), P('lang', ''), P('voice', '🎙'), P('model', ''), toggle('captions', 'Captions', f.captions)],
+    ad: [P('format', ''), P('tier', '◆'), P('variants', '×'), P('angle', ''), P('platform', ''), P('lang', ''), P('seconds', ''), P('voice', '🎙'), toggle('approve', 'Approve first', f.approve), toggle('captions', 'Captions', f.captions)],
+    talk: [P('textMode', ''), P('tier', '◆'), P('lang', ''), P('voice', '🎙'), f.textMode === 'topic' ? P('seconds', '') : '', toggle('captions', 'Captions', f.captions)],
+    story: ['<button class="pill brainbtn" data-board title="Plan and edit the video scene by scene">🧩 Storyboard</button>', P('tier', '◆'), P('scenes', 'Scenes'), P('aspect', ''), P('style', ''), P('lang', ''), P('voice', '🎙'), f.tier === 'motion' ? '' : P('model', ''), toggle('captions', 'Captions', f.captions)],
     voice: [P('kind', ''), ...(f.kind === 'tts' ? [P('voice', '🎙'), String(f.voice).startsWith('el:') ? P('voiceEngine', '') : P('emotion', ''), P('lang', '')] : [P('length', '⏱')])],
   }[m].filter(Boolean).join('');
   const prompt = m === 'talk' && f.textMode === 'topic' ? 'What should they talk about?' : m === 'voice' && f.kind === 'sfx' ? 'Describe the sound… e.g. whoosh transition with a soft pop' : m === 'voice' && f.kind === 'music' ? 'Describe the track… e.g. upbeat lo-fi for a product video, no vocals' : PLACEHOLDER[m];
@@ -499,6 +516,7 @@ function payload() {
   if (S.mode === 'ad') { f.notes = f.prompt; delete f.prompt; }
   if (S.mode === 'talk') { if (f.textMode === 'topic') { f.topic = f.prompt; f.script = ''; } else f.script = f.prompt; delete f.prompt; }
   if (S.mode === 'voice') { f.text = f.prompt; delete f.prompt; }
+  if (S.mode === 'ad') { f.draft = !!f.approve; delete f.approve; }
   return f;
 }
 function validate() {
@@ -523,7 +541,7 @@ async function generate() {
     load().then(() => renderFeed());
   } catch (e) {
     toast(e.message, true);
-    if (e.code === 'credits') accountModal();
+    if (e.code === 'credits' || e.code === 'plan') accountModal();
   }
   btn.disabled = false;
 }
@@ -543,9 +561,15 @@ const closePop = () => { $('#pop').hidden = true; };
 
 function pillMenu(anchor, key) {
   const opts = pillOptions(key);
-  const sub = key === 'model' ? MODEL_SUB() : key === 'engine' ? ENGINE_SUB() : key === 'voice' ? Object.fromEntries(Object.keys(opts).map((k) => [k, voiceSub(k)])) : {};
+  const sub = key === 'model' ? MODEL_SUB() : key === 'tier' ? TIER_SUB() : key === 'voice' ? Object.fromEntries(Object.keys(opts).map((k) => [k, voiceSub(k)])) : {};
   const cur = String(F()[key]);
-  openPop(anchor, Object.entries(opts).map(([v, l]) => `<button class="it ${v === cur ? 'on' : ''}" data-v="${esc(v)}"><span>${esc(l)}${sub[v] ? `<small>${sub[v]}</small>` : ''}</span></button>`).join(''), (v) => {
+  openPop(anchor, Object.entries(opts).map(([v, l]) => {
+    const need = needFor(key, /^\d+$/.test(v) ? +v : v);
+    const locked = need && !canUse(need);
+    return `<button class="it ${v === cur ? 'on' : ''} ${locked ? 'locked' : ''}" data-v="${esc(v)}"><span>${esc(l)}${locked ? ` <em class="lock">🔒 ${PLAN_LABEL[need]}</em>` : ''}${sub[v] ? `<small>${sub[v]}</small>` : ''}</span></button>`;
+  }).join(''), (v) => {
+    const need = needFor(key, /^\d+$/.test(v) ? +v : v);
+    if (need && !canUse(need)) { closePop(); toast(`${opts[v]} is on the ${PLAN_LABEL[need]} plan`); return accountModal(); }
     F()[key] = /^\d+$/.test(v) ? +v : v;
     closePop();
     renderComposer();
@@ -678,6 +702,7 @@ function jobModal(id) {
   if (!media.length && audios.length) media.push(...audios);
   const show = (o) => (o.type === 'video' ? `<video src="${o.url}" controls autoplay loop playsinline></video>` : o.type === 'audio' ? `<div class="aud"><div class="wave">${'<i></i>'.repeat(32)}</div><audio src="${o.url}" controls autoplay></audio></div>` : `<img src="${o.url}" alt="">`);
   const first = media[0];
+  const review = j.stage === 'review' && j.status === 'done' && j.draftData?.plans?.length;
   const m = modal(`
     <div class="view" id="jv">${first ? show(first) : '<div class="muted">No media yet</div>'}</div>
     <div class="info">
@@ -686,7 +711,7 @@ function jobModal(id) {
       ${media.length > 1 ? `<div class="thumbs">${media.map((o, i) => `<button data-i="${i}" class="${i === 0 ? 'on' : ''}" title="${esc(o.label || '')}">${o.type === 'video' ? `<video src="${o.url}#t=0.3" muted preload="metadata"></video>` : o.type === 'audio' ? '<span class="ai">♪</span>' : `<img src="${o.url}">`}${o.label ? `<em>${esc(o.label)}</em>` : ''}</button>`).join('')}</div>` : ''}
       ${j.error ? `<div class="err">${esc(j.error)}</div>` : ''}
       ${j.status !== 'done' ? `<ul class="steps">${j.steps.map((s) => `<li class="${s.status}">${esc(s.label)}</li>`).join('')}</ul>` : ''}
-      ${j.text ? `<div class="txt" id="jt">${esc(j.text)}</div>` : ''}
+      ${review ? `<div class="review-box"><b>Review before rendering</b><small>Edit any script, then approve. Nothing is rendered until you do.</small>${j.draftData.plans.map((pl, k) => `<label>${j.draftData.plans.length > 1 ? `V${k + 1} · ${esc(j.draftData.angles?.[k] || '')}` : 'Script'}<textarea data-sc="${k}" rows="4">${esc(pl.script || '')}</textarea></label>`).join('')}<button class="btn pri" id="approve">Approve & render <span id="apc"></span></button></div>` : j.text ? `<div class="txt" id="jt">${esc(j.text)}</div>` : ''}
       <div class="acts">
         ${first ? `<a class="btn pri" id="dl" href="${dl(first.url)}" download>⬇ Download</a>` : ''}
         ${j.text ? '<button class="btn" id="cp">Copy text</button>' : ''}
@@ -699,6 +724,21 @@ function jobModal(id) {
       </div>
     </div>`, 'big');
   let cur = first;
+  if (review) {
+    const body = () => ({ tool: 'ugc', input: { ...j.input, draft: false, fromDraft: j.id, scripts: [...m.querySelectorAll('[data-sc]')].map((t) => t.value) } });
+    api('/api/estimate', body()).then(({ credits }) => { $('#apc', m).textContent = `✦ ${credits}`; }, () => {});
+    $('#approve', m).onclick = async (e) => {
+      e.target.disabled = true;
+      try {
+        const job = await api('/api/jobs', body());
+        S.jobs.unshift(job); closeModal(); renderFeed(); poll(); load().then(() => renderFeed());
+        toast('Approved. Rendering your ad…');
+      } catch (err) {
+        toast(err.message, true); e.target.disabled = false;
+        if (err.code === 'credits' || err.code === 'plan') accountModal();
+      }
+    };
+  }
   m.querySelector('.thumbs')?.addEventListener('click', (e) => {
     const b = e.target.closest('[data-i]');
     if (!b) return;

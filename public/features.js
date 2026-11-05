@@ -75,7 +75,7 @@ function renderHome() {
         <h1>Your product.<br>Your face.<br>Ad in one click.</h1>
         <p>Hook, script, Malay voice-over, lip-synced creator video and captions. Make 5 variations at once and test which one sells.</p>
         <span class="cta">Make an ad →</span>
-        <span class="stat">≈ 32 credits per 10s talking ad</span>
+        <span class="stat">Motion ad ≈ 9 credits · Lite talking ad ≈ 32</span>
       </a>
       <a class="bx" href="#" data-act="brainstorm"><span class="ic">✨</span><h3>Brainstorm</h3><p>Kravitas studies your photos and suggests hooks, angles and ready-made ideas.</p></a>
       <a class="bx b-av" href="#" data-act="avatars"><div class="faces">${presets.slice(0, 4).map((p) => `<img src="${portrait(p.look, p.id)}" alt="">`).join('')}</div><h3>AI avatars</h3><p>Pick a ready-made creator or design your own.</p></a>
@@ -110,7 +110,7 @@ function avatarLibraryModal() {
       const job = await api('/api/jobs', { tool: 'avatarGen', input: { preset: b.dataset.av } });
       S.jobs.unshift(job); poll(); closeModal(); renderAll();
       toast(`Creating ${list.find((x) => x.id === b.dataset.av)?.name}… they'll appear in your friends`);
-    } catch (e) { toast(e.message, true); b.disabled = false; if (e.code === 'credits') accountModal(); }
+    } catch (e) { toast(e.message, true); b.disabled = false; if (e.code === 'credits' || e.code === 'plan') accountModal(); }
   }));
 }
 
@@ -148,7 +148,7 @@ function avatarBuilderModal() {
       const job = await api('/api/jobs', { tool: 'avatarGen', input: { look, count: n, name: $('#avname', m).value.trim() || 'My avatar' } });
       S.jobs.unshift(job); poll(); closeModal(); renderAll();
       toast('Creating your avatar options. Open the card when it’s done and save your favourite');
-    } catch (err) { toast(err.message, true); e.target.disabled = false; if (err.code === 'credits') accountModal(); }
+    } catch (err) { toast(err.message, true); e.target.disabled = false; if (err.code === 'credits' || err.code === 'plan') accountModal(); }
   };
 }
 
@@ -198,7 +198,7 @@ function voiceCloneModal() {
       S.forms.voice = { ...(S.forms.voice || DEFAULTS.voice()), voice: `clone:${v.id}`, kind: 'tts' };
       closeModal(); setMode('voice'); renderAll();
       toast(`★ ${v.name} is ready. It's now in every voice picker`);
-    } catch (err) { toast(err.message, true); e.target.disabled = false; e.target.textContent = 'Clone voice'; if (err.code === 'credits') accountModal(); }
+    } catch (err) { toast(err.message, true); e.target.disabled = false; e.target.textContent = 'Clone voice'; if (err.code === 'credits' || err.code === 'plan') accountModal(); }
   };
 }
 
@@ -266,7 +266,7 @@ async function storyboardModal({ board, reuseFrom, input }) {
         const job = await api('/api/jobs', { tool: 'story', input: { ...base, prompt: base.prompt || b.title, board: b, reuseFrom: reuseFrom || undefined } });
         S.jobs.unshift(job); setMode('story'); closeModal(); renderAll(); poll();
         $('#feed').scrollIntoView({ behavior: 'smooth' });
-      } catch (err) { toast(err.message, true); e.target.disabled = false; if (err.code === 'credits') accountModal(); }
+      } catch (err) { toast(err.message, true); e.target.disabled = false; if (err.code === 'credits' || err.code === 'plan') accountModal(); }
     };
     est();
   };
@@ -371,20 +371,21 @@ async function postModal(j, video) {
 // ---------- plans & credits ----------
 function creditsModal(a, ledger) {
   const plans = CFG.plans || [], packs = CFG.packs || [];
-  const perAd = 32;
+  const perAd = 32; // Lite talking ad
   const m = modal(`<h2>Plans & credits</h2>
     <p style="font-size:38px;font-weight:800;letter-spacing:-.04em;margin:6px 0 2px">✦ ${a.credits.toLocaleString()}</p>
-    <p class="muted" style="margin:0">A 10s talking ad ≈ ${perAd} credits · an image 10 · a 5s video 10 · a voice-over 1–3.</p>
+    <p class="muted" style="margin:0">Motion ad ≈ 9 credits · Lite talking ad ≈ ${perAd} · Fast ≈ 49 · an image 6–16 · a voice-over 1–3.</p>
     ${CFG.payments ? `<label class="l" style="margin-top:20px">Monthly plans</label>
     <div class="plans">${plans.map((p) => `<div class="plan ${a.plan === p.id ? 'cur' : ''}">${p.tag ? `<span class="ptag">${esc(p.tag)}</span>` : ''}<b>${esc(p.name)}</b>
       <div class="pp">${RM(p.price)}<small>/month</small></div><div class="pc">${p.credits.toLocaleString()} credits / month</div>
-      <small class="muted">≈ ${Math.floor(p.credits / perAd)} talking ads</small>
+      <small class="muted">≈ ${Math.floor(p.credits / perAd)} Lite ads or ${Math.floor(p.credits / 9)} Motion ads</small>
+      ${p.features?.length ? `<ul class="pf">${p.features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
       ${a.plan === p.id ? '<span class="btn">Current plan</span>' : `<button class="btn pri" data-plan="${esc(p.id)}">Subscribe</button>`}</div>`).join('')}</div>
     ${a.plan ? '<p class="hint"><a href="#" id="portal">Manage or cancel your plan</a></p>' : '<p class="hint">Cancel anytime. Unused credits stay on your account.</p>'}
     <label class="l" style="margin-top:18px">One-off top-ups</label>
     <div class="packs">${packs.map((p) => `<button class="pack" data-pack="${esc(p.id)}">${p.tag ? `<span class="ptag">${esc(p.tag)}</span>` : ''}<b>${p.credits.toLocaleString()}</b><small>credits</small><span class="price">${RM(p.price)}</span></button>`).join('')}</div>
     <p class="hint">Secure checkout by Stripe: card, FPX online banking, GrabPay.</p>` : '<p class="hint" style="margin-top:14px">Plans are coming soon.</p>'}
-    ${a.mode === 'preview' ? '<p class="hint">Preview: these show the real checkout, but payments are switched off. <a href="#" id="reset">Reset preview data</a></p>' : ''}
+    ${a.mode === 'preview' ? '<p class="hint">Preview: Subscribe simulates the plan (no payment) so you can try its features. Top-ups are off. <a href="#" id="reset">Reset preview data</a></p>' : ''}
     <p class="hint">Guest account on this browser. Account ID: <code style="user-select:all">${esc(a.userId)}</code></p>
     <label class="l" style="margin-top:18px">Activity</label>${ledgerTable(ledger)}
     <p class="hint" style="margin-top:14px"><a href="terms" target="_blank">Terms</a> · <a href="privacy" target="_blank">Privacy</a></p>`, 'wide');

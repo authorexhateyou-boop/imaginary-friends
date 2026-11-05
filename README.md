@@ -7,14 +7,14 @@ accurate packaging. One click turns a product into a ready-to-post TikTok Shop /
 ## What's inside
 
 - **Home**: bento overview of everything below, plus a 4-step getting-started guide.
-- **Ad** (the money-maker): product + friend/avatar → hook, script, voice, lip-synced or showcase video, captions, hashtags. **Batch: 1, 3 or 5 variations** with different angles in one go. Talking engines: **Fast** (H3 Turbo + voice, cheapest), **Studio** (VEED Fabric), **Premium** (OmniHuman).
+- **Ad** (the money-maker): product + friend/avatar → hook, script, voice, lip-synced or showcase video, captions, hashtags. **Batch: 1, 3 or 5 variations** with different angles in one go. Quality tiers: **Motion** (animated still + voice, ≈9 credits), **Lite** (H3 Turbo, ≈32), **Fast**, **Studio** (VEED lip-sync), **Premium** (OmniHuman). **Approve first**: review and edit the scripts before the expensive render.
 - **Video / Image / Talk**: camera-directed shots, packshots and thumbnails, talking heads.
 - **Story + Storyboard**: plan scene by scene, edit narration/visual/camera, reorder; **edit a finished video and only changed scenes are re-rendered (and charged)**.
 - **Voice studio**: ElevenLabs v3 (audio tags like [excited] [whispers]) and Multilingual, MiniMax voices with a natural Malay accent, **clone your own voice**, sound effects and background music.
 - **AI avatars**: 8 ready-made Malaysian creator personas, or design your own (4 options to pick from). Saved as friends with a consistent face.
 - **Brainstorm**: vision AI studies your photos and prompt, then chat to refine hooks and ideas.
 - **Schedule / auto-post**: connect TikTok, Instagram, Facebook, YouTube and Threads; post now or schedule any creation, with the AI-generated label.
-- **Plans**: monthly subscriptions (Creator RM79 → 1,600 credits) plus one-off top-ups via Stripe (card, FPX, GrabPay).
+- **Plans**: monthly subscriptions (Starter RM59 → 1,000 · Creator RM129 → 2,500 · Pro RM299 → 6,500 credits, higher plans unlock better engines) plus one-off top-ups via Stripe (card, FPX, GrabPay).
 
 ## Two ways to run
 
@@ -26,7 +26,7 @@ single-user studio at http://localhost:3365. Paste your fal.ai key under ⚙ to 
 
 ## Credits
 
-1 credit ≈ US$0.01 of fal.ai cost (estimates in `lib/models.js`). A job reserves its estimated credits when
+1 credit ≈ US$0.0053 of fal.ai cost (markup 1.9) (estimates in `lib/models.js`). A job reserves its estimated credits when
 it starts, and the unused part is refunded when it ends (or if it fails or the server restarts).
 
 ## Where things live

@@ -4,41 +4,326 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Kravitas</title>
-<meta name="description" content="AI video studio for creators and affiliates. Turn your face and your products into ready-to-post TikTok Shop and Shopee ads, talking videos and stories.">
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="AI studio for Malaysian creators and affiliates. Product ads, camera-directed videos, images, Malay voice-overs and auto-posting in one place. From RM39 a month.">
 <meta name="theme-color" content="#000000">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Kravitas: AI ads with your own face">
-<meta property="og:description" content="Product + your photo → script, voice, lip-synced UGC video and captions. Made for Malaysian creators and affiliates.">
+<meta property="og:title" content="Kravitas: ads, videos and posts in one studio">
+<meta property="og:description" content="Your product and your face, turned into ready-to-post TikTok Shop and Shopee ads with Malay voice-overs. From RM39 a month.">
 <meta property="og:image" content="og.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='black'/><text x='16' y='23' font-family='Arial,sans-serif' font-weight='900' font-size='20' fill='white' text-anchor='middle'>K</text></svg>">
+<style>
+/* Layout: one black page of sharp bento blocks; white is the only accent and marks every action. */
+:root{
+  --bg:#000;--panel:#0d0d0d;--panel2:#161616;--line:#2b2b2b;--fg:#fff;--muted:#8f8f8f;--ink:#000;
+  --display:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 var(--body);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+img{max-width:100%}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 22px;font-weight:800;font-size:15px;text-decoration:none;border:1px solid var(--fg);background:var(--fg);color:var(--ink);transition:background .15s,color .15s}
+.btn:hover{background:#d9d9d9}
+.btn.ghost{background:transparent;color:var(--fg);border-color:var(--line)}
+.btn.ghost:hover{border-color:var(--fg);background:transparent}
+.btn:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
+
+/* nav */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:rgba(0,0,0,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:28px;height:64px}
+.logo{font-weight:800;letter-spacing:.32em;text-transform:uppercase;font-size:16px;text-decoration:none}
+.nav nav{display:flex;gap:22px;margin-right:auto}
+.nav nav a{text-decoration:none;color:var(--muted);font-size:14px;font-weight:600}
+.nav nav a:hover{color:var(--fg)}
+.nav .btn{padding:10px 16px;font-size:14px}
+
+/* hero */
+.hero{padding-block:72px 56px}
+.hero .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center}
+.hero h1{font-size:clamp(42px,6.2vw,84px);line-height:.95;letter-spacing:-.055em;font-weight:900;margin:16px 0 22px}
+.hero h1 span{color:var(--muted)}
+.hero p.lead{font-size:18px;color:#c9c9c9;max-width:34em;margin:0 0 30px}
+.cta-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.cta-note{font-size:13px;color:var(--muted);margin-top:14px}
+
+/* hero mock: the studio's own stage */
+.mock{border:1px solid var(--line);background:var(--panel);padding:14px}
+.mock-tabs{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--line);margin-bottom:12px}
+.mock-tabs span{font-size:12px;font-weight:700;color:var(--muted);text-align:center;padding:8px 0;border-right:1px solid var(--line)}
+.mock-tabs span:last-child{border-right:0}
+.mock-tabs span.on{background:var(--fg);color:var(--ink)}
+.stage{position:relative;overflow:hidden;aspect-ratio:9/12;max-height:430px;width:100%;background:#111}
+.sc{position:absolute;inset:-25%;background:linear-gradient(hsl(28,60%,55%),hsl(250,45%,12%));animation:dolly 6s ease-in-out infinite alternate}
+.sc .sun{position:absolute;left:62%;top:30%;width:14%;aspect-ratio:1;border-radius:50%;background:hsl(40,100%,88%);box-shadow:0 0 50px hsl(40,100%,70%)}
+.sc .mt{position:absolute;bottom:0;left:0;right:0;height:45%;background:hsl(250,35%,10%);clip-path:polygon(0 100%,0 45%,22% 20%,40% 50%,60% 15%,80% 48%,100% 30%,100% 100%)}
+.prod{position:absolute;left:50%;bottom:27%;transform:translateX(-50%);width:17%;aspect-ratio:1/2;background:linear-gradient(#fafafa,#d6d6d6);box-shadow:0 18px 40px rgba(0,0,0,.6)}
+.prod::before{content:"";position:absolute;top:-14%;left:22%;right:22%;height:16%;background:#111}
+.prod::after{content:"GLOW";position:absolute;top:38%;left:0;right:0;text-align:center;font:800 9px/1 var(--body);letter-spacing:.12em;color:#000}
+@keyframes dolly{from{transform:scale(.92)}to{transform:scale(1.3)}}
+.vig{position:absolute;inset:0;box-shadow:inset 0 0 90px rgba(0,0,0,.6)}
+.hud{position:absolute;left:12px;top:10px;font:11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;text-shadow:0 1px 3px #000}
+.cap{position:absolute;left:8%;right:8%;bottom:9%;text-align:center;font-weight:900;font-size:clamp(15px,1.7vw,20px);line-height:1.2;text-shadow:0 2px 0 #000,0 0 6px #000;letter-spacing:-.01em}
+.mock-bar{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.pill{font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--panel2);padding:6px 10px}
+.mock-go{margin-left:auto;background:var(--fg);color:var(--ink);font-weight:800;font-size:13px;padding:9px 14px}
+
+/* platform strip */
+.strip{border-block:1px solid var(--line);padding-block:18px}
+.strip .wrap{display:flex;flex-wrap:wrap;gap:10px 34px;align-items:center;justify-content:space-between}
+.strip b{font-size:15px;font-weight:800;letter-spacing:-.01em;color:#cfcfcf}
+
+/* sections */
+section.block{padding-block:88px}
+.sec-h{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:16px;margin-bottom:34px}
+.sec-h h2{font-size:clamp(30px,4vw,50px);letter-spacing:-.045em;line-height:1;font-weight:900;max-width:16em}
+.sec-h p{color:var(--muted);max-width:28em;margin:0}
+
+/* features bento */
+.bento{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.tile{position:relative;background:var(--panel);border:1px solid var(--line);padding:24px;display:flex;flex-direction:column;gap:8px;min-width:0;min-height:230px}
+.tile h3{font-size:20px;letter-spacing:-.03em;font-weight:800}
+.tile p{margin:0;color:var(--muted);font-size:14.5px}
+.tile .tag{align-self:flex-start;margin-bottom:6px;font-size:11px;font-weight:700;border:1px solid var(--line);padding:3px 7px;color:#cfcfcf}
+.t-ad{grid-column:span 2;grid-row:span 2;background:var(--fg);color:var(--ink);border-color:var(--fg)}
+.t-ad p{color:#444}.t-ad .tag{border-color:#000;color:#000;position:absolute;top:24px;right:24px;margin:0}
+.t-ad h3{font-size:clamp(28px,3vw,40px);letter-spacing:-.05em;line-height:1}
+.t-wide{grid-column:span 2}
+.angles{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 auto}
+.angles span{border:1px solid #000;font-size:13px;font-weight:700;padding:6px 10px}
+.flow{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid #000;margin-top:18px}
+.flow div{padding:12px;border-right:1px solid #000;font-size:13px}
+.flow div:last-child{border-right:0}
+.flow b{display:block;font-size:15px}
+.flow small{color:#555}
+.cams{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto}
+.cams span{font:12px var(--mono);border:1px solid var(--line);padding:4px 8px;color:#cfcfcf}
+.faces{display:flex;margin-bottom:auto}
+.faces i{width:46px;height:46px;border:2px solid var(--panel);margin-right:-10px;background:#222 center/cover;display:block}
+.wave{display:flex;align-items:center;gap:3px;height:42px;margin-bottom:auto}
+.wave i{flex:1;background:var(--fg);height:30%;animation:wv 1.1s ease-in-out infinite alternate}
+.wave i:nth-child(3n){height:70%;animation-delay:.2s}.wave i:nth-child(4n){height:45%;animation-delay:.35s}.wave i:nth-child(5n){height:90%;animation-delay:.1s}
+@keyframes wv{to{transform:scaleY(.35)}}
+.plats{display:flex;gap:6px;margin-bottom:auto}
+.plats span{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--line);font-weight:800;font-size:13px}
+.hooks{margin:0 0 auto;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.hooks li{font-size:13px;border-left:2px solid var(--fg);padding:2px 0 2px 10px;color:#ddd}
+
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;counter-reset:s}
+.step{border:1px solid var(--line);padding:26px;background:var(--panel)}
+.step .n{width:34px;height:34px;display:grid;place-items:center;background:var(--fg);color:var(--ink);font-weight:900;margin-bottom:18px}
+.step h3{font-size:20px;letter-spacing:-.03em;margin-bottom:6px}
+.step p{margin:0;color:var(--muted);font-size:14.5px}
+
+/* pricing */
+.plans{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.plan{position:relative;border:1px solid var(--line);background:var(--panel);padding:26px 22px;display:flex;flex-direction:column;gap:6px}
+.plan.pop{border-color:var(--fg)}
+.plan .badge{position:absolute;top:-11px;left:22px;background:var(--fg);color:var(--ink);font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px}
+.plan h3{font-size:16px;font-weight:800}
+.price{font-size:44px;font-weight:900;letter-spacing:-.05em;line-height:1;margin-top:8px;font-variant-numeric:tabular-nums}
+.price small{font-size:14px;font-weight:600;color:var(--muted);letter-spacing:0;margin-left:4px}
+.cred{font-weight:700;font-variant-numeric:tabular-nums}
+.est{font-size:13px;color:var(--muted)}
+.plan ul{list-style:none;padding:0;margin:12px 0 20px;display:flex;flex-direction:column;gap:7px;font-size:14px;color:#d4d4d4}
+.plan li::before{content:"✓";margin-right:8px;color:var(--fg);font-weight:800}
+.plan .btn{margin-top:auto}
+.plan:not(.pop) .btn{background:transparent;color:var(--fg);border-color:var(--line)}
+.plan:not(.pop) .btn:hover{border-color:var(--fg)}
+.fine{color:var(--muted);font-size:13px;margin-top:18px}
+
+/* faq */
+.faq{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:40px}
+details{border-top:1px solid var(--line)}
+details:last-child{border-bottom:1px solid var(--line)}
+summary{list-style:none;cursor:pointer;padding:20px 0;font-weight:700;font-size:17px;display:flex;justify-content:space-between;gap:16px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";font-weight:400;font-size:22px;line-height:1}
+details[open] summary::after{content:"–"}
+details p{margin:0 0 20px;color:var(--muted);max-width:60ch}
+
+/* final cta */
+.final{background:var(--fg);color:var(--ink)}
+.final .wrap{padding-block:80px;display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:24px}
+.final h2{font-size:clamp(34px,5vw,64px);letter-spacing:-.055em;line-height:.95;font-weight:900;max-width:12em}
+.final .btn{background:var(--ink);color:var(--fg);border-color:var(--ink)}
+.final .btn:hover{background:#222}
+footer .wrap{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-between;padding-block:28px;color:var(--muted);font-size:13px}
+footer a{text-decoration:none}footer a:hover{color:var(--fg)}
+
+@media (max-width:960px){
+  .hero .wrap{grid-template-columns:1fr}
+  .mock{max-width:460px}
+  .bento{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .plans{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .faq{grid-template-columns:1fr;gap:10px}
+}
+@media (max-width:640px){
+  .nav nav{display:none}
+  .nav .wrap{justify-content:space-between}
+  .hero{padding-block:44px 40px}
+  section.block{padding-block:60px}
+  .bento,.steps,.plans{grid-template-columns:1fr}
+  .t-ad,.t-wide{grid-column:auto}.t-ad{grid-row:auto}
+  .tile{min-height:0}
+  .flow{grid-template-columns:1fr}.flow div{border-right:0;border-bottom:1px solid #000}.flow div:last-child{border-bottom:0}
+  .strip .wrap{justify-content:flex-start}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}
+</style>
 </head>
 <body>
-<header class="top">
-  <a class="logo" href="#" data-mode="home">kravitas</a>
-  <nav class="tabs" id="tabs"></nav>
-  <div class="right">
-    <button class="credits" id="credits" data-open="settings">✦ —</button>
-    <button class="icon" data-guide-show title="Show the step-by-step guide">?</button>
-    <button class="icon" data-open="settings" title="Settings">⚙</button>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="logo" href="#top">Kravitas</a>
+    <nav aria-label="Sections"><a href="#features">Features</a><a href="#how">How it works</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>
+    <a class="btn" href="/studio" data-studio>Open studio</a>
   </div>
 </header>
 
-<main id="main">
-  <section id="presets"></section>
-  <section id="feed"></section>
-  <footer class="foot">© Kravitas · <a href="terms">Terms</a> · <a href="privacy">Privacy</a></footer>
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <span class="eyebrow">AI studio for Malaysian creators &amp; affiliates</span>
+        <h1>Your product.<br>Your face.<br><span>Ready to post.</span></h1>
+        <p class="lead">Kravitas writes the hook, records a Bahasa Melayu voice-over, makes the video with captions and posts it to TikTok, Instagram and more. Ads, videos, images and voice-overs, all in one studio.</p>
+        <div class="cta-row">
+          <a class="btn" href="/studio" data-studio>Start free · 40 credits</a>
+          <a class="btn ghost" href="#pricing">See pricing</a>
+        </div>
+        <p class="cta-note">No sign-up needed to try it. Plans from RM39 a month.</p>
+      </div>
+      <div class="mock" aria-label="A product ad being made in the Kravitas studio">
+        <div class="mock-tabs" aria-hidden="true"><span class="on">Ad</span><span>Video</span><span>Image</span><span>Voice</span><span>Schedule</span></div>
+        <div class="stage">
+          <div class="sc"><div class="sun"></div><div class="mt"></div><div class="prod"></div></div>
+          <div class="vig"></div>
+          <div class="hud">Motion ad · 9:16 · Dolly in</div>
+          <div class="cap">Serius, serum ni game changer!</div>
+        </div>
+        <div class="mock-bar" aria-hidden="true"><span class="pill">Honest review</span><span class="pill">Bahasa Melayu</span><span class="pill">TikTok Shop</span><span class="mock-go">Generate ✦ 9</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="strip">
+    <div class="wrap"><span class="eyebrow">Made for</span><b>TikTok Shop</b><b>Shopee</b><b>Lazada</b><b>Instagram Reels</b><b>YouTube Shorts</b></div>
+  </div>
+
+  <section class="block" id="features">
+    <div class="wrap">
+      <div class="sec-h"><h2>One studio instead of five apps.</h2><p>Switch between Ad, Video, Image, Voice and Schedule without leaving the page. Your products, faces and creations stay in one place.</p></div>
+      <div class="bento">
+        <div class="tile t-ad">
+          <span class="tag">Ad</span>
+          <span class="eyebrow" style="color:#555">The money-maker</span>
+          <h3>Affiliate ads that sell, from one product photo.</h3>
+          <p>Pick an angle, make 1, 3 or 5 variations at once, and test which hook converts.</p>
+          <div class="angles"><span>Honest review</span><span>Flash sale</span><span>Problem → fix</span><span>Unboxing</span><span>Vs. pricey one</span><span>Before &amp; after</span></div>
+          <div class="flow">
+            <div><b>Draft</b><small>Hook, script and keyframe for a few credits</small></div>
+            <div><b>Approve</b><small>Edit any line before anything renders</small></div>
+            <div><b>Render</b><small>Voice, video and captions, ready to post</small></div>
+          </div>
+        </div>
+        <div class="tile">
+          <span class="tag">Video</span>
+          <div class="cams"><span>Dolly in</span><span>Orbit</span><span>Crane up</span><span>Crash zoom</span><span>FPV drone</span></div>
+          <h3>Direct the camera</h3>
+          <p>Describe the scene, pick a camera move and a style. No editing skills needed.</p>
+        </div>
+        <div class="tile">
+          <span class="tag">Characters</span>
+          <div class="faces" aria-hidden="true"><i style="background:linear-gradient(135deg,#e7c3a3,#8a5a3c)"></i><i style="background:linear-gradient(135deg,#f2d6c0,#5b3b2b)"></i><i style="background:linear-gradient(135deg,#c48b62,#3d2518)"></i><i style="background:linear-gradient(135deg,#ead0b8,#24324a)"></i></div>
+          <h3>Same face in every shot</h3>
+          <p>Use your own photo, or pick a ready-made AI creator if you'd rather not show your face.</p>
+        </div>
+        <div class="tile">
+          <span class="tag">Voice</span>
+          <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <h3>Voices that speak BM</h3>
+          <p>Natural Bahasa Melayu and English voices, music and sound effects. Clone your own voice once.</p>
+        </div>
+        <div class="tile">
+          <span class="tag">Schedule</span>
+          <div class="plats" aria-hidden="true"><span>♪</span><span>◎</span><span>f</span><span>▶</span><span>@</span></div>
+          <h3>Post on autopilot</h3>
+          <p>Connect TikTok, Instagram, Facebook, YouTube and Threads. Post now or schedule the week.</p>
+        </div>
+        <div class="tile t-wide">
+          <span class="tag">Brainstorm</span>
+          <ul class="hooks"><li>Jangan beli serum ni sebelum tengok video ni</li><li>Serum ni betul-betul berbaloi ke?</li><li>POV: korang jumpa serum ni separuh harga</li></ul>
+          <h3>Stuck for ideas?</h3>
+          <p>Kravitas studies your product photo and suggests hooks, angles and captions, in BM or English.</p>
+        </div>
+        <div class="tile t-wide">
+          <span class="tag">Image</span>
+          <h3>Packshots, lifestyle and thumbnails</h3>
+          <p>Clean e-commerce shots for your Shopee listing, festive promos for Raya and 11.11, and bold covers that get the tap.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="how" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-h"><h2>Your first ad in three steps.</h2><p>Most people have their first video ready within a few minutes.</p></div>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><h3>Add your product</h3><p>One clear photo, the price and what makes it good.</p></div>
+        <div class="step"><div class="n">2</div><h3>Choose a face</h3><p>Your own photo or an AI creator. They stay the same in every video.</p></div>
+        <div class="step"><div class="n">3</div><h3>Approve and post</h3><p>Check the script, tap approve, then download or schedule the finished ad.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="pricing" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-h"><h2>Simple monthly plans.</h2><p>Credits refill every month. A Motion ad costs about 9 credits and a Lite AI-video ad about 32.</p></div>
+      <div class="plans" id="plans"></div>
+      <p class="fine">Prices in Malaysian ringgit. Cancel anytime; unused credits stay on your account. Secure checkout by Stripe. One-off top-ups from RM25.</p>
+    </div>
+  </section>
+
+  <section class="block" id="faq" style="padding-top:0">
+    <div class="wrap faq">
+      <div><span class="eyebrow">FAQ</span><h2 style="font-size:clamp(30px,4vw,50px);letter-spacing:-.045em;line-height:1;font-weight:900;margin-top:10px">Questions, answered.</h2></div>
+      <div>
+        <details><summary>What is a credit?</summary><p>Credits pay for what the AI makes. A Motion ad (animated photo with voice-over and captions) is about 9 credits, a Lite talking ad with real AI video about 32, and an image 6 to 16. You always see the cost on the Generate button before you click.</p></details>
+        <details><summary>Do I need to show my face?</summary><p>No. Pick a ready-made AI creator from the avatar library, or make a showcase ad that focuses on the product.</p></details>
+        <details><summary>Does it work in Bahasa Melayu?</summary><p>Yes. Scripts, captions and voice-overs can be in Bahasa Melayu, English or Manglish.</p></details>
+        <details><summary>Do I need to sign up?</summary><p>Not to try it. Opening the studio gives you a guest account with 40 free credits in your browser. Clearing your browser data removes that guest account.</p></details>
+        <details><summary>Can I edit the script before it renders?</summary><p>Yes. With Approve first switched on, Kravitas drafts the hook, script and keyframe for a few credits, and only makes the voice and video after you approve.</p></details>
+        <details><summary>How do I pay, and can I cancel?</summary><p>Monthly plans are paid by card through Stripe. One-off top-ups also accept FPX online banking and GrabPay. Cancel anytime from your account.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="wrap">
+      <h2>Make your first ad today.</h2>
+      <a class="btn" href="/studio" data-studio>Open the studio · 40 free credits</a>
+    </div>
+  </section>
 </main>
 
-<div class="composer-wrap"><div class="composer" id="composer"></div></div>
-<div id="pop" class="pop" hidden></div>
-<div id="modal" class="modal" hidden></div>
-<div id="toast"></div>
-<script src="app.js"></script>
-<script src="features.js"></script>
+<footer>
+  <div class="wrap"><span>© Kravitas</span><span><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></span></div>
+</footer>
+
+<script src="landing.js"></script>
 </body>
 </html>

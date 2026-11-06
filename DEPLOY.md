@@ -29,7 +29,7 @@ About 30 minutes. You need accounts on supabase.com, railway.com, stripe.com and
    - `FREE_CREDITS=40` (welcome credits per guest, about 4 Motion ads)
    - `COMPANY_NAME` and `SUPPORT_EMAIL` (shown on /terms and /privacy)
 3. **Settings → Networking → Generate Domain**. Copy it and set `PUBLIC_URL=https://<your-domain>`.
-4. Open the domain. You should land on the studio with 40 credits.
+4. Open the domain. The landing page is at `/` and the studio at `/studio`, where you start with 40 credits.
 
 ## 4. Stripe (selling credits)
 

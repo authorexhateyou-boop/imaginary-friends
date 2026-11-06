@@ -4,7 +4,7 @@
   "buildCommand": "",
   "outputDirectory": "public",
   "regions": ["sin1"],
-  "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
+  "rewrites": [{ "source": "/studio", "destination": "/studio.html" }, { "source": "/(.*)", "destination": "/api" }],
   "functions": {
     "api/index.js": {
       "maxDuration": 300,

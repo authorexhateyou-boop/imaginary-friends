@@ -81,7 +81,7 @@ const PLATFORM = { tiktok: 'TikTok Shop', shopee: 'Shopee', lazada: 'Lazada', in
 
 // Home is a bento overview; Ad is the money-maker, so it comes right after.
 const MODES = {
-  home: { label: 'Home', page: true },
+  home: { label: 'Home', page: true, hidden: true }, // the studio is one page now; 'home' just means Ad
   ad: { tool: 'ugc', label: 'Ad', hot: true },
   video: { tool: 'shot', label: 'Video' },
   image: { tool: 'image', label: 'Image' },
@@ -156,8 +156,8 @@ const PLACEHOLDER = {
 
 // ---------- state ----------
 // Every visit opens on the homepage (Ad); switching tabs is per visit.
-const S = { app: null, friends: [], products: [], jobs: [], voices: [], mode: 'home', forms: {}, preset: {} };
-const F = () => S.forms[S.mode] || (S.forms[S.mode] = DEFAULTS[S.mode]());
+const S = { app: null, friends: [], products: [], jobs: [], voices: [], mode: 'ad', forms: {}, preset: {} };
+const F = () => S.forms[S.mode] || (S.forms[S.mode] = (DEFAULTS[S.mode] || (() => ({ prompt: '' })))());
 const friendById = (id) => S.friends.find((f) => f.id === id);
 const productById = (id) => S.products.find((p) => p.id === id);
 
@@ -168,6 +168,7 @@ async function load() {
 
 // ---------- render ----------
 function renderTabs() {
+  if (!$('#tabs')) return;
   $('#tabs').innerHTML = Object.entries(MODES).filter(([, m]) => !m.hidden).map(([k, m]) => `<button data-mode="${k}" class="${k === S.mode ? 'on' : ''}">${m.label}${m.hot ? '<span class="hot">NEW</span>' : ''}</button>`).join('');
 }
 
@@ -194,50 +195,15 @@ function guideHTML() {
   const n = steps.filter((x) => x.done).length;
   const next = steps.findIndex((x) => !x.done);
   return `<section class="guide" aria-label="Getting started">
-    <div class="g-h"><div><h2>${n === 4 ? 'You’re all set ✓' : 'Your first ad in 4 steps'}</h2><p class="muted">${n} of 4 done</p></div>
-      <button class="link" data-guide-hide>Hide guide</button></div>
+    <div class="g-h"><div><h2>${n === 4 ? 'You’re all set ✓' : 'Your first ad in 4 steps'}</h2><p class="muted">${n} of 4 done</p></div></div>
     <div class="g-bar"><i style="width:${n * 25}%"></i></div>
     <ol class="g-steps">${steps.map((x, i) => `<li class="${x.done ? 'done' : i === next ? 'next' : ''}">
       <span class="g-n">${x.done ? '✓' : i + 1}</span><b>${x.t}</b><p>${x.d}</p>
       ${x.done ? '<span class="g-ok">Done</span>' : `<button class="btn ${i === next ? 'pri' : ''}" ${x.act}>${x.btn}</button>`}</li>`).join('')}</ol></section>`;
 }
 
-function renderPresets() {
-  const [h, p] = HERO[S.mode];
-  const f = F();
-  const items = PRESETS[S.mode].map((x) => {
-    const on = !!x.set && Object.entries(x.set).every(([k, v]) => k === 'prompt' || f[k] === v) && S.preset[S.mode] === x.id;
-    const pv = x.cam
-      ? `<div class="sc cam-${x.id}" style="--h:${x.h}"><div class="sun"></div><div class="mt"></div><div class="who"></div></div>`
-      : `<div class="e">${x.e}</div>`;
-    return `<button class="preset ${on || (x.cam && f.camera === x.id) ? 'on' : ''}" data-preset="${x.id}"><div class="pv" ${x.cam ? '' : `style="background:radial-gradient(circle at 30% 20%,hsl(${(x.id.length * 47) % 360},60%,28%),#111)"`}>${pv}</div><div class="lb">${esc(x.t)}${x.d ? `<small>${esc(x.d)}</small>` : ''}</div></button>`;
-  }).join('');
-  $('#presets').innerHTML = `
-    <div class="hero"><h1>${h}</h1><p>${p}</p>
-      ${S.app.mock && S.app.mode === 'local' ? `<div class="banner">🧪 Demo mode: placeholders, no cost. <button data-open="settings">Add fal.ai key</button></div>` : ''}</div>
-    <div class="strip-h"><h2>${S.mode === 'video' ? 'Camera moves' : 'Presets'}</h2>
-      <div class="rail-nav"><button class="rn" data-rail="-1" aria-label="Scroll left">‹</button><button class="rn" data-rail="1" aria-label="Scroll right">›</button></div></div>
-    <div class="rail"><div class="strip" id="strip">${items}</div></div>
-    ${guideHTML()}`;
-  const strip = $('#strip');
-  const upd = () => {
-    const max = strip.scrollWidth - strip.clientWidth - 2;
-    const rail = strip.parentElement;
-    rail.classList.toggle('fade-l', strip.scrollLeft > 2);
-    rail.classList.toggle('fade-r', strip.scrollLeft < max);
-    $('[data-rail="-1"]').disabled = strip.scrollLeft <= 2;
-    $('[data-rail="1"]').disabled = strip.scrollLeft >= max;
-  };
-  strip.addEventListener('scroll', upd, { passive: true });
-  // a vertical mouse wheel scrolls the rail sideways
-  strip.addEventListener('wheel', (e) => {
-    if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && strip.scrollWidth > strip.clientWidth) {
-      const atEnd = (e.deltaY > 0 && strip.scrollLeft >= strip.scrollWidth - strip.clientWidth - 2) || (e.deltaY < 0 && strip.scrollLeft <= 0);
-      if (!atEnd) { e.preventDefault(); strip.scrollLeft += e.deltaY; }
-    }
-  }, { passive: false });
-  requestAnimationFrame(upd);
-}
+// The studio's side cards replace the old preset rail; kept as a hook for the composer code.
+function renderPresets() { if (typeof refreshSides === 'function') refreshSides(); }
 
 // ---------- brainstorm ----------
 const BRAIN_KEYS = { ad: ['format', 'angle', 'platform', 'seconds'], video: ['camera', 'style', 'aspect', 'duration'], image: ['style', 'aspect'], talk: ['textMode'], story: ['scenes', 'style', 'aspect'] };
@@ -391,7 +357,7 @@ const sigs = new Map();
 function renderFeed() {
   const feed = $('#feed');
   if (!S.jobs.length) {
-    feed.innerHTML = `<div class="feed-h"><h2>Your creations</h2></div><div class="empty">${S.mode === 'home' ? 'Nothing yet. Your ads and videos will appear here.' : 'Nothing yet. Type a prompt below and hit Generate.'}</div>`;
+    feed.innerHTML = `<div class="feed-h"><h2>Your creations</h2></div><div class="empty">Nothing yet. Your ads, videos, images and voice-overs will appear here.</div>`;
     return;
   }
   if (!$('.grid', feed)) feed.innerHTML = `<div class="feed-h"><h2>Your creations</h2><span class="muted" id="cnt"></span></div><div class="grid"></div>`;
@@ -472,6 +438,7 @@ function voiceOptions() {
 const voiceSub = (k) => (k.startsWith('clone:') ? 'Cloned voice' : k.startsWith('mm:') ? 'MiniMax · natural Bahasa Melayu' : 'ElevenLabs');
 
 function renderComposer(keepFocus) {
+  if (!$('#composer') || !MODES[S.mode]?.tool) return;
   const f = F();
   const m = S.mode;
   const refs = [];
@@ -841,24 +808,19 @@ function poll() {
       } catch { /* server busy */ }
     }
     renderFeed();
-    if (S.mode === 'home' && typeof homeTick === 'function') homeTick();
+    if (typeof studioTick === 'function') studioTick();
   }, 2000);
 }
 
 // ---------- events ----------
 function setMode(m) {
-  if (MODES[m]?.hidden) m = 'home';
+  if (!MODES[m] || MODES[m].hidden) m = 'ad';
   S.mode = m;
 }
 function renderAll() {
   renderTabs();
-  const page = MODES[S.mode]?.page;
-  document.body.dataset.view = S.mode;
-  $('.composer-wrap').hidden = !!page;
-  if (S.mode === 'home') renderHome();
-  else if (S.mode === 'schedule') renderSchedule();
-  else { renderPresets(); renderComposer(); }
-  $('#feed').hidden = S.mode === 'schedule';
+  document.body.dataset.view = 'studio';
+  renderStudio();
   renderFeed();
 }
 
@@ -889,8 +851,7 @@ document.addEventListener('click', (e) => {
   if (act) { e.preventDefault(); closeModal(); return ACTIONS[act.dataset.act]?.(); }
   if (t.closest('[data-brain]')) return runBrainstorm();
   if (t.closest('[data-brain-last]') && lastBrain) return showBrain(lastBrain, [friendById(lastBrain.ctx.friendId)?.photos?.[0], productById(lastBrain.ctx.productId)?.image].filter(Boolean));
-  if (t.closest('[data-guide-hide]')) { flag('if-guide-hidden', true); return S.mode === 'home' ? renderHome() : renderPresets(); }
-  if (t.closest('[data-guide-show]')) { flag('if-guide-hidden', false); if (MODES[S.mode].page && S.mode !== 'home') setMode('home'); renderAll(); return $('#presets').scrollIntoView({ behavior: 'smooth' }); }
+  if (t.closest('[data-guide-show]')) { flag('if-guide-hidden', false); return modal(guideHTML()); }
   const rl = t.closest('[data-rail]');
   if (rl) { const st = $('#strip'); return st.scrollBy({ left: +rl.dataset.rail * st.clientWidth * 0.8, behavior: 'smooth' }); }
   const pr = t.closest('[data-preset]');
@@ -924,7 +885,7 @@ document.addEventListener('mouseout', (e) => { const v = e.target.closest('.card
     await load();
     const q = new URLSearchParams(location.search);
     if (q.get('paid') || q.get('cancelled')) {
-      history.replaceState(null, '', '/');
+      history.replaceState(null, '', location.pathname);
       if (q.get('paid')) {
         try {
           const r = await api('/api/checkout/verify', { sessionId: q.get('paid') });

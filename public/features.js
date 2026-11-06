@@ -13,6 +13,7 @@ const ACTIONS = {
   brainstorm: () => { setMode('ad'); renderAll(); runBrainstorm(); },
   batch: () => { setMode('ad'); S.forms.ad = { ...(S.forms.ad || DEFAULTS.ad()), variants: 5 }; renderAll(); toast('5 variations set. Add a product and hit Generate'); },
   plans: () => accountModal(),
+  clone: () => voiceCloneModal(),
   newFriend: () => friendModal(),
   newProduct: () => productModal(),
 };
@@ -84,14 +85,22 @@ function stageHTML(label) {
   const who = f?.photos?.[0] ? `background-image:url('${f.photos[0]}')` : '';
   return `<div class="sc cam-${SHOT.camera}" style="--h:${hueOf(SHOT.prompt)};filter:${STYLE_FX[SHOT.style] || 'none'}"><div class="sun"></div><div class="mt"></div><div class="who ${who ? 'ph' : ''}" style="${who}">${who ? '' : esc((f?.name || 'K')[0].toUpperCase())}</div></div><div class="vig"></div><div class="hud">${esc(label)}</div>`;
 }
-function homeShots() { return S.jobs.filter((j) => ['shot', 'story', 'ugc', 'avatar'].includes(j.tool)); }
+// ---------- studio: one page for Ad, Video, Image, Voice and Schedule ----------
+const TOOLS = [['ad', 'Ad'], ['video', 'Video'], ['image', 'Image'], ['voice', 'Voice'], ['schedule', 'Schedule']];
+const TOOL_JOBS = { ad: ['ugc'], video: ['shot', 'story'], image: ['image', 'avatarGen'], voice: ['voice'], schedule: ['ugc', 'shot', 'story', 'avatar'] };
+function recentJobs() {
+  const want = TOOL_JOBS[S.mode] || [];
+  const mine = S.jobs.filter((j) => want.includes(j.tool));
+  return (mine.length ? mine : S.jobs).slice(0, 12);
+}
 function stripHTML() {
-  const list = homeShots().slice(0, 12);
-  if (!list.length) return '<p class="hs-empty">Your shots appear here, with the same character in each one.</p>';
+  const list = recentJobs();
+  if (!list.length) return '<p class="hs-empty">What you make shows up here.</p>';
   return list.map((j) => {
     const t = thumbOf(j);
     const step = j.steps?.find((x) => x.status === 'running');
-    return `<button class="hs-card" data-job="${j.id}"><div class="hs-th">${j.status === 'running' ? `<div class="hs-run"><i></i><small>${esc(step?.label || 'Starting')}…</small></div>` : t ? (t.type === 'video' ? `<video src="${t.url}#t=0.3" muted preload="metadata"></video>` : `<img src="${t.url}" alt="">`) : `<div class="hs-run"><small>${j.status === 'error' ? 'Failed' : 'Script'}</small></div>`}</div><p>${esc(j.title)}</p></button>`;
+    const audio = j.outputs.some((o) => o.type === 'audio');
+    return `<button class="hs-card" data-job="${j.id}"><div class="hs-th">${j.status === 'running' ? `<div class="hs-run"><i></i><small>${esc(step?.label || 'Starting')}…</small></div>` : t ? (t.type === 'video' ? `<video src="${t.url}#t=0.3" muted preload="metadata"></video>` : `<img src="${t.url}" alt="">`) : `<div class="hs-run"><small>${j.status === 'error' ? 'Failed' : j.stage === 'review' ? 'Review & approve' : audio ? '♪ Audio' : 'Script'}</small></div>`}</div><p>${esc(j.title)}</p></button>`;
   }).join('');
 }
 async function shotEstimate() {
@@ -104,18 +113,16 @@ async function shotGo(btn) {
   btn.disabled = true;
   try {
     const job = await api('/api/jobs', { tool: 'shot', input: shotInput() });
-    S.jobs.unshift(job); SHOT.job = job.id; poll(); renderFeed(); homeTick();
+    S.jobs.unshift(job); SHOT.job = job.id; poll(); renderFeed(); studioTick();
     toast('Rendering your shot…');
   } catch (e) { toast(e.message, true); if (e.code === 'credits' || e.code === 'plan') accountModal(); }
   btn.disabled = false;
 }
-// called by the job poller while Home is open
-function homeTick() {
+// called by the job poller
+function studioTick() {
   const strip = $('#hs-strip'); if (!strip) return;
   strip.innerHTML = stripHTML();
-  const shots = S.jobs.filter((j) => j.tool === 'shot');
-  $('#hs-n') && ($('#hs-n').textContent = shots.length);
-  $('#hs-c') && ($('#hs-c').textContent = shots.reduce((a, j) => a + (j.cost || 0), 0));
+  if (S.mode !== 'video') return;
   const j = SHOT.job && S.jobs.find((x) => x.id === SHOT.job);
   const stage = $('#hs-stage'); if (!j || !stage) return;
   if (j.status === 'running') {
@@ -127,56 +134,154 @@ function homeTick() {
     SHOT.job = null;
   } else { stage.innerHTML = stageHTML('Failed: ' + (j.error || '')); SHOT.job = null; }
 }
-function renderHome() {
-  const c = S.app.catalog;
-  const models = c.videoModels || {};
-  const mp = c.modelPlan || {};
-  const shots = S.jobs.filter((j) => j.tool === 'shot');
-  const friends = S.friends;
-  shotFriend();
+
+// ----- side cards -----
+function characterCard() {
+  const cur = S.mode === 'video' ? shotFriend()?.id : F().friendId;
+  return `<h2>Character</h2><p class="sub">${S.mode === 'ad' ? 'Who presents your product. Optional.' : 'Your photo is the reference. Kravitas keeps this face.'}</p>
+    <div class="zz-chl">${S.friends.length ? S.friends.map((f) => `<button class="zz-ch ${f.id === cur ? 'on' : ''}" data-fr="${f.id}"><span class="av" style="${f.photos?.[0] ? `background-image:url('${f.photos[0]}')` : ''}">${f.photos?.[0] ? '' : esc(f.name[0])}</span><span><b>${esc(f.name)}</b><small>${f.id === cur ? 'Selected' : 'Tap to use'}</small></span></button>`).join('') : '<p class="hs-empty">No characters yet.</p>'}</div>
+    <div class="zz-two"><button class="btn pri" data-new="friend">＋ Add character</button><button class="btn" data-act="avatars">AI avatars</button></div>`;
+}
+function productCard() {
+  const cur = F().productId;
+  return `<h2>Product</h2><p class="sub">What you are selling. One clear photo is enough.</p>
+    <div class="zz-chl">${S.products.length ? S.products.map((p) => `<button class="zz-ch ${p.id === cur ? 'on' : ''}" data-pd="${p.id}"><span class="av" style="background-image:url('${p.image}')"></span><span><b>${esc(p.name)}</b><small>${p.price ? esc(p.price) : p.id === cur ? 'Selected' : 'Tap to use'}</small></span></button>`).join('') : '<p class="hs-empty">No products yet.</p>'}</div>
+    <div class="zz-two one"><button class="btn pri" data-new="product">＋ Add product</button></div>`;
+}
+function voiceCard() {
+  const v = S.voices || [];
+  return `<h2>Your voice</h2><p class="sub">Clone your own voice once, then use it on every voice-over.</p>
+    <div class="zz-chl">${v.length ? v.map((x) => `<div class="zz-ch static"><span class="av">★</span><span><b>${esc(x.name)}</b><small>Cloned voice</small></span></div>`).join('') : '<p class="hs-empty">No cloned voice yet.</p>'}</div>
+    <div class="zz-two one"><button class="btn pri" data-act="clone">🧬 Clone my voice</button></div>`;
+}
+function readyCard() {
+  const vids = S.jobs.filter((j) => j.status === 'done' && j.outputs.some((o) => o.type === 'video')).slice(0, 4);
+  return `<h2>Ready to post</h2><p class="sub">Your latest videos. Tap one to post or schedule it.</p>
+    <div class="zz-chl">${vids.length ? vids.map((j) => `<button class="zz-ch" data-postjob="${j.id}"><span class="av" style="${thumbOf(j)?.type === 'image' ? `background-image:url('${thumbOf(j).url}')` : ''}">▶</span><span><b>${esc(j.title.slice(0, 40))}</b><small>Post / schedule</small></span></button>`).join('') : '<p class="hs-empty">Make a video first.</p>'}</div>`;
+}
+function creditsCard() {
+  const a = S.app, plan = (CFG.plans || []).find((p) => p.id === a.plan);
+  const cheapest = [...(CFG.plans || [])].sort((x, y) => x.price - y.price)[0];
+  return `<h2>Credits</h2><p class="zz-big">✦ ${a.credits.toLocaleString()}</p><p class="sub" style="margin:0 0 12px">${plan ? `${esc(plan.name)} plan · ${plan.credits.toLocaleString()} every month` : cheapest ? `Plans from ${RM(cheapest.price)}/month` : ''}</p><button class="btn" data-act="plans">${plan ? 'Manage plan' : 'See plans'}</button>`;
+}
+function presetCard() {
+  if (S.mode === 'video') return `<h2>Start from a template</h2><p class="sub">Fills the prompt, camera and style for you.</p><div class="zz-tpls">${HOME_TPLS.map((t, i) => `<button class="zz-opt" data-tpl="${i}"><b>${t[0]} ${t[1]}</b></button>`).join('')}</div>`;
+  if (S.mode === 'schedule') return `<h2>How it works</h2><ol class="zz-steps"><li><b>Connect</b> your TikTok, Instagram, Facebook, YouTube or Threads.</li><li><b>Make</b> a video in Ad or Video.</li><li><b>Post or schedule</b> it from its card. Captions are filled in for you.</li></ol>`;
+  const f = F();
+  const list = (PRESETS[S.mode] || []).filter((x) => x.action !== 'clone');
+  return `<h2>${S.mode === 'ad' ? 'Ad style' : 'Templates'}</h2><p class="sub">${S.mode === 'ad' ? 'Pick an angle. You can change it any time.' : 'One tap sets everything up.'}</p>
+    <div class="zz-tpls">${list.map((x) => { const on = !!x.set && S.preset[S.mode] === x.id && Object.entries(x.set).every(([k, v]) => k === 'prompt' || f[k] === v); return `<button class="zz-opt ${on ? 'on' : ''}" data-preset="${x.id}"><b>${x.e} ${esc(x.t)}</b></button>`; }).join('')}</div>`;
+}
+function styleCard() {
+  const cur = S.mode === 'video' ? SHOT.style : F().style;
+  return `<h2>Visual style</h2><div class="zz-styles">${HOME_STYLES.map((x) => `<button class="zz-sty ${x[0] === cur ? 'on' : ''}" data-st="${x[0]}" title="${esc(x[2])}">${x[1]}</button>`).join('')}</div>`;
+}
+const SIDES = {
+  ad: [productCard, presetCard, characterCard],
+  video: [characterCard, presetCard, styleCard],
+  image: [characterCard, presetCard, styleCard],
+  voice: [voiceCard, presetCard, creditsCard],
+  schedule: [readyCard, presetCard, creditsCard],
+};
+function fillSides() {
+  const [a, b, c] = SIDES[S.mode] || SIDES.ad;
+  const set = (id, fn) => { const el = $(id); if (el) el.innerHTML = fn(); };
+  set('#zz-s1', a); set('#zz-s2', b); set('#zz-s3', c);
+}
+// app.js calls renderPresets() after composer changes: keep the side cards in sync
+function refreshSides() { if ($('#zz-s1')) fillSides(); }
+
+// ----- main card -----
+function lastOf(tools) { return S.jobs.find((j) => tools.includes(j.tool) && j.status === 'done'); }
+function mainStage() {
+  if (S.mode === 'ad') {
+    const j = lastOf(['ugc']); const t = j && thumbOf(j);
+    const pr = productById(F().productId), fr = friendById(F().friendId);
+    if (t) return `<div class="zz-stage tall" data-job="${j.id}">${t.type === 'video' ? `<video src="${t.url}" autoplay loop muted playsinline></video>` : `<img src="${t.url}" alt="">`}<div class="hud">LAST AD · TAP TO OPEN</div></div>`;
+    return `<div class="zz-stage tall zz-ph"><div class="zz-pair">${pr ? `<img src="${pr.image}" alt="">` : '<span>📦</span>'}<em>+</em>${fr?.photos?.[0] ? `<img src="${fr.photos[0]}" alt="">` : '<span>🙂</span>'}</div><small>${pr ? esc(pr.name) : 'Add a product'} ${fr ? '· ' + esc(fr.name) : ''}</small><div class="hud">YOUR AD APPEARS HERE</div></div>`;
+  }
+  if (S.mode === 'image') {
+    const j = lastOf(['image']); const t = j && thumbOf(j);
+    if (t) return `<div class="zz-stage tall" data-job="${j.id}"><img src="${t.url}" alt=""><div class="hud">LAST IMAGE · TAP TO OPEN</div></div>`;
+    return `<div class="zz-stage tall"><div class="sc cam-static" style="--h:${hueOf(F().prompt || 'image')};filter:${STYLE_FX[F().style] || 'none'}"><div class="sun"></div><div class="mt"></div></div><div class="vig"></div><div class="hud">PREVIEW · ${esc(STYLE[F().style] || '')}</div></div>`;
+  }
+  if (S.mode === 'voice') {
+    const j = lastOf(['voice']); const a = j?.outputs.find((o) => o.type === 'audio');
+    return `<div class="zz-stage short zz-ph"><div class="wave">${'<i></i>'.repeat(40)}</div>${a ? `<audio src="${a.url}" controls></audio><small>${esc(j.title.slice(0, 70))}</small>` : '<small>Your voice-over plays here</small>'}</div>`;
+  }
+  return '';
+}
+function renderMain() {
+  const box = $('#zz-main'); if (!box) return;
+  if (S.mode === 'video') {
+    const c = S.app.catalog, models = c.videoModels || {}, mp = c.modelPlan || {};
+    box.innerHTML = `
+      <div class="zz-stagewrap"><div class="zz-stage" id="hs-stage" style="aspect-ratio:${SHOT.aspect.replace(':', '/')}">${stageHTML('PREVIEW · ' + (HOME_STYLES.find((x) => x[0] === SHOT.style)?.[1] || ''))}</div></div>
+      <label class="l" for="hs-p">Scene prompt</label>
+      <textarea class="in" id="hs-p" rows="2" maxlength="1500">${esc(SHOT.prompt)}</textarea>
+      <div class="zz-row">
+        <div><label class="l" for="hs-cam">Camera</label><select class="in" id="hs-cam">${Object.entries(CAM).map(([k, l]) => `<option value="${k}" ${k === SHOT.camera ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div><label class="l" for="hs-md">Model</label><select class="in" id="hs-md">${Object.entries(models).map(([k, m]) => { const lock = mp[k] && !canUse(mp[k]); return `<option value="${k}" ${k === SHOT.model ? 'selected' : ''}>${esc(m.label)} · ${esc(m.tag)}${lock ? ` · 🔒 ${PLAN_LABEL[mp[k]]}` : ''}</option>`; }).join('')}</select></div>
+        <div><label class="l" for="hs-ar">Format</label><select class="in" id="hs-ar">${Object.entries(HOME_ASPECT).map(([k, l]) => `<option value="${k}" ${k === SHOT.aspect ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      </div>
+      <button class="go zz-go" id="hs-go">Generate shot <span class="c" id="hs-est"></span></button>`;
+    const preview = () => { if (!SHOT.job) $('#hs-stage').innerHTML = stageHTML('PREVIEW · ' + (HOME_STYLES.find((x) => x[0] === SHOT.style)?.[1] || '')); shotEstimate(); };
+    studioPreview = preview;
+    $('#hs-p').oninput = (e) => { SHOT.prompt = e.target.value; clearTimeout(preview.t); preview.t = setTimeout(preview, 300); };
+    $('#hs-cam').onchange = (e) => { SHOT.camera = e.target.value; preview(); };
+    $('#hs-md').onchange = (e) => {
+      const v = e.target.value, need = mp[v];
+      if (need && !canUse(need)) { e.target.value = SHOT.model; toast(`${models[v]?.label || 'That model'} is on the ${PLAN_LABEL[need]} plan`); return accountModal(); }
+      SHOT.model = v; shotEstimate();
+    };
+    $('#hs-ar').onchange = (e) => { SHOT.aspect = e.target.value; $('#hs-stage').style.aspectRatio = SHOT.aspect.replace(':', '/'); preview(); };
+    $('#hs-go').onclick = (e) => shotGo(e.currentTarget);
+    if (SHOT.job) studioTick();
+    shotEstimate();
+    return;
+  }
+  if (S.mode === 'schedule') { box.innerHTML = '<div id="sched"></div>'; renderSchedule(); return; }
+  box.innerHTML = `${mainStage()}<p class="zz-lead">${HERO[S.mode]?.[1] || ''}</p><div class="composer inline" id="composer"></div>`;
+  renderComposer();
+}
+let studioPreview = () => {};
+function renderStudio() {
+  const shots = S.jobs.filter((j) => (TOOL_JOBS[S.mode] || []).includes(j.tool));
   $('#presets').innerHTML = `
     <section class="bento zz">
       <div class="bx zz-shot">
-        <div class="zz-top"><h2>Direct the shot</h2><span><b id="hs-n">${shots.length}</b> shots · <b id="hs-c">${shots.reduce((a, j) => a + (j.cost || 0), 0)}</b> credits</span></div>
-        <div class="zz-stagewrap"><div class="zz-stage" id="hs-stage" style="aspect-ratio:${SHOT.aspect.replace(':', '/')}">${stageHTML('PREVIEW · ' + (HOME_STYLES.find((x) => x[0] === SHOT.style)?.[1] || ''))}</div></div>
-        <label class="l" for="hs-p">Scene prompt</label>
-        <textarea class="in" id="hs-p" rows="2" maxlength="1500">${esc(SHOT.prompt)}</textarea>
-        <div class="zz-row">
-          <div><label class="l" for="hs-cam">Camera</label><select class="in" id="hs-cam">${Object.entries(CAM).map(([k, l]) => `<option value="${k}" ${k === SHOT.camera ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-          <div><label class="l" for="hs-md">Model</label><select class="in" id="hs-md">${Object.entries(models).map(([k, m]) => { const lock = mp[k] && !canUse(mp[k]); return `<option value="${k}" ${k === SHOT.model ? 'selected' : ''}>${esc(m.label)} · ${esc(m.tag)}${lock ? ` · 🔒 ${PLAN_LABEL[mp[k]]}` : ''}</option>`; }).join('')}</select></div>
-          <div><label class="l" for="hs-ar">Format</label><select class="in" id="hs-ar">${Object.entries(HOME_ASPECT).map(([k, l]) => `<option value="${k}" ${k === SHOT.aspect ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-        </div>
-        <button class="go zz-go" id="hs-go">Generate shot <span class="c" id="hs-est"></span></button>
+        <div class="zz-tools" role="tablist">${TOOLS.map(([k, l]) => `<button role="tab" data-mode="${k}" class="${k === S.mode ? 'on' : ''}" aria-selected="${k === S.mode}">${l}</button>`).join('')}
+          <span class="zz-count"><b>${shots.length}</b> made · <b>${shots.reduce((a, j) => a + (j.cost || 0), 0)}</b> credits</span></div>
+        <div id="zz-main"></div>
       </div>
-      <div class="bx zz-chars">
-        <h2>Character</h2><p class="sub">Your photo is the reference. Kravitas keeps this face.</p>
-        <div class="zz-chl">${friends.length ? friends.map((f) => `<button class="zz-ch ${f.id === SHOT.friendId ? 'on' : ''}" data-fr="${f.id}"><span class="av" style="${f.photos?.[0] ? `background-image:url('${f.photos[0]}')` : ''}">${f.photos?.[0] ? '' : esc(f.name[0])}</span><span><b>${esc(f.name)}</b><small>${f.photos?.length ? 'Photo reference' : 'No photo yet'}</small></span></button>`).join('') : '<p class="hs-empty">No characters yet.</p>'}</div>
-        <div class="zz-two"><button class="btn pri" data-new="friend">＋ Add character</button><button class="btn" data-act="avatars">AI avatars</button></div>
-      </div>
-      <div class="bx zz-tpl">
-        <h2>Start from a template</h2><p class="sub">Fills the prompt, camera and style for you.</p>
-        <div class="zz-tpls">${HOME_TPLS.map((t, i) => `<button class="zz-opt" data-tpl="${i}"><b>${t[0]} ${t[1]}</b></button>`).join('')}</div>
-      </div>
-      <div class="bx zz-strip"><div class="zz-top"><h2>Storyboard</h2></div><div class="zz-row2" id="hs-strip">${stripHTML()}</div></div>
-      <div class="bx zz-style"><h2>Visual style</h2><div class="zz-styles">${HOME_STYLES.map((x) => `<button class="zz-sty ${x[0] === SHOT.style ? 'on' : ''}" data-st="${x[0]}" title="${esc(x[2])}">${x[1]}</button>`).join('')}</div></div>
+      <div class="bx zz-chars" id="zz-s1"></div>
+      <div class="bx zz-tpl" id="zz-s2"></div>
+      <div class="bx zz-strip"><div class="zz-top"><h2>Recent</h2><span>Tap to open</span></div><div class="zz-row2" id="hs-strip">${stripHTML()}</div></div>
+      <div class="bx zz-style" id="zz-s3"></div>
     </section>`;
-  const root = $('#presets');
-  const preview = () => { if (!SHOT.job) $('#hs-stage').innerHTML = stageHTML('PREVIEW · ' + (HOME_STYLES.find((x) => x[0] === SHOT.style)?.[1] || '')); shotEstimate(); };
-  $('#hs-p').oninput = (e) => { SHOT.prompt = e.target.value; clearTimeout(preview.t); preview.t = setTimeout(preview, 300); };
-  $('#hs-cam').onchange = (e) => { SHOT.camera = e.target.value; preview(); };
-  $('#hs-md').onchange = (e) => {
-    const v = e.target.value, need = mp[v];
-    if (need && !canUse(need)) { e.target.value = SHOT.model; toast(`${models[v]?.label || 'That model'} is on the ${PLAN_LABEL[need]} plan`); return accountModal(); }
-    SHOT.model = v; shotEstimate();
-  };
-  $('#hs-ar').onchange = (e) => { SHOT.aspect = e.target.value; $('#hs-stage').style.aspectRatio = SHOT.aspect.replace(':', '/'); preview(); };
-  root.querySelectorAll('[data-fr]').forEach((b) => (b.onclick = () => { SHOT.friendId = b.dataset.fr; root.querySelectorAll('[data-fr]').forEach((x) => x.classList.toggle('on', x === b)); preview(); }));
-  root.querySelectorAll('[data-tpl]').forEach((b) => (b.onclick = () => { const t = HOME_TPLS[+b.dataset.tpl]; Object.assign(SHOT, { prompt: t[2], camera: t[3], style: t[4] }); renderHome(); }));
-  root.querySelectorAll('[data-st]').forEach((b) => (b.onclick = () => { SHOT.style = b.dataset.st; root.querySelectorAll('[data-st]').forEach((x) => x.classList.toggle('on', x === b)); preview(); }));
-  $('#hs-go').onclick = (e) => shotGo(e.currentTarget);
-  if (SHOT.job) homeTick();
-  shotEstimate();
+  fillSides();
+  renderMain();
 }
+// side-card clicks (delegated once)
+document.addEventListener('click', (e) => {
+  const t = e.target;
+  const fr = t.closest('#presets [data-fr]');
+  if (fr) {
+    if (S.mode === 'video') { SHOT.friendId = fr.dataset.fr; fillSides(); return studioPreview(); }
+    F().friendId = F().friendId === fr.dataset.fr ? null : fr.dataset.fr; fillSides(); renderComposer(); if (S.mode === 'ad') $('#zz-main') && renderMain(); return;
+  }
+  const pd = t.closest('#presets [data-pd]');
+  if (pd) { F().productId = pd.dataset.pd; fillSides(); return renderMain(); }
+  const tp = t.closest('#presets [data-tpl]');
+  if (tp) { const x = HOME_TPLS[+tp.dataset.tpl]; Object.assign(SHOT, { prompt: x[2], camera: x[3], style: x[4] }); fillSides(); return renderMain(); }
+  const st = t.closest('#presets [data-st]');
+  if (st) {
+    if (S.mode === 'video') { SHOT.style = st.dataset.st; fillSides(); return studioPreview(); }
+    F().style = st.dataset.st; fillSides(); return renderMain();
+  }
+  const pj = t.closest('#presets [data-postjob]');
+  if (pj) { const j = S.jobs.find((x) => x.id === pj.dataset.postjob); return postModal(j, [...j.outputs].reverse().find((o) => o.type === 'video')); }
+});
 
 // ---------- avatars ----------
 function avatarLibraryModal() {
@@ -361,7 +466,7 @@ async function loadPosts() {
 }
 
 async function renderSchedule() {
-  const el = $('#presets');
+  const el = $('#sched') || $('#presets');
   el.innerHTML = '<div class="empty" style="margin-top:30px">Loading…</div>';
   await loadPosts();
   const on = S.app.social;
@@ -380,8 +485,7 @@ async function renderSchedule() {
       <span class="pst ${st.replace(' ', '-')}">${st}</span></div>`;
   };
   el.innerHTML = `
-    <div class="hero" style="text-align:left;padding-top:10px"><h1 style="font-size:clamp(28px,4vw,44px)">Auto-post</h1>
-      <p style="margin-left:0">Connect your accounts once, then post or schedule any creation from its card. TikTok and YouTube posts are labelled as AI-generated.</p>
+    <div class="zz-sch-h"><p class="zz-lead" style="margin-top:0">Connect your accounts once, then post or schedule any video. TikTok and YouTube posts are labelled as AI-generated.</p>
       ${on ? '' : S.app.mode === 'preview' ? '' : '<div class="banner">Auto-posting switches on when POSTFORME_API_KEY is added on the server.</div>'}</div>
     <div class="accts">${Object.entries(PLATFORM_META).map(([k, p]) => {
       const acc = (S.accounts || []).find((a) => a.platform === k);
@@ -444,7 +548,7 @@ async function postModal(j, video) {
     try {
       await api('/api/social/posts', { jobId: j.id, mediaUrl: video.url, caption: $('#pmc', m).value, accountIds: ids, scheduledAt: later ? new Date($('#pmt', m).value).toISOString() : null, aiLabel: $('#pmai', m).checked, title: j.title });
       closeModal(); toast(later ? '✓ Scheduled' : '✓ Posting now'); S.posts = null;
-      if (S.mode === 'schedule' || S.mode === 'home') renderAll();
+      if (S.mode === 'schedule') renderAll();
     } catch (err) { toast(err.message, true); e.target.disabled = false; }
   };
 }

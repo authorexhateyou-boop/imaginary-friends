@@ -525,3 +525,31 @@ button.bx{font:inherit;text-align:left;cursor:pointer}
 .zz-sty:hover{border-color:#666;color:var(--fg)}
 .zz-sty.on{border-color:#fff;color:var(--fg);box-shadow:inset 0 0 0 1px #fff}
 
+/* ---------- one-page studio ---------- */
+body[data-view="studio"] main{padding-bottom:60px}
+.top-sub{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-right:auto;margin-left:14px;border-left:1px solid var(--line);padding-left:14px}
+.zz-tools{display:flex;align-items:center;gap:0;border:1px solid var(--line);margin-bottom:14px;overflow-x:auto}
+.zz-tools button{border:0;border-right:1px solid var(--line);background:none;color:var(--muted);padding:11px 18px;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap}
+.zz-tools button:hover{color:var(--fg);background:#121212}
+.zz-tools button.on{background:#fff;color:#000}
+.zz-tools .hot{font-size:9px;border:1px solid currentColor;padding:0 4px;margin-left:4px;vertical-align:2px}
+.zz-count{margin-left:auto;padding:0 14px;font-size:12px;color:var(--muted);white-space:nowrap}.zz-count b{color:var(--fg)}
+.zz-lead{color:var(--muted);font-size:13px;margin:12px 0 10px}
+.composer.inline{position:static;max-width:none;margin:0;border-radius:0;box-shadow:none;background:var(--bg);border:1px solid var(--line)}
+.composer.inline .go{border-radius:0}
+.zz-stage.tall{aspect-ratio:auto;height:280px;cursor:default}
+.zz-stage[data-job]{cursor:pointer}
+.zz-stage.short{height:150px}
+.zz-ph{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);border:1px solid var(--line)}
+.zz-ph small{font-size:12px}
+.zz-pair{display:flex;align-items:center;gap:14px}
+.zz-pair img,.zz-pair span{width:96px;height:120px;object-fit:cover;border:1px solid var(--line);display:grid;place-items:center;font-size:34px;background:#141414}
+.zz-pair em{font-style:normal;font-size:22px;color:var(--muted)}
+.zz-ph .wave{width:70%;height:50px}
+.zz-ph audio{width:80%}
+.zz-two.one{grid-template-columns:1fr}
+.zz-ch.static{cursor:default}
+.bento.zz .bx .zz-big{font-size:34px;color:var(--fg);font-weight:800;letter-spacing:-.04em;margin:4px 0 6px}
+.zz-steps{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px;color:var(--muted);font-size:13px}.zz-steps b{color:var(--fg)}
+#sched .accts{margin-top:4px}#sched .strip-h{margin-top:18px}
+@media (max-width:620px){.zz-tools{display:grid;grid-template-columns:repeat(5,1fr)}.zz-tools button{padding:10px 2px;font-size:12px}.zz-tools button:last-of-type{border-right:0}.zz-count{display:none}.zz-stage.tall{height:200px}.zz-pair img,.zz-pair span{width:70px;height:88px}.top-sub{display:none}.bento.zz{grid-template-areas:"shot" "chars" "tpl" "style" "strip"}}

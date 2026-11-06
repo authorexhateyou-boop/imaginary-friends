@@ -204,7 +204,7 @@ app.post('/api/checkout', limit('checkout', 15, 10), wrap(async (req, res) => {
       line_items: [{ quantity: 1, price_data: { currency: config.currency, unit_amount: Math.round(plan.price * 100), recurring: { interval: 'month' }, product_data: { name: `Kravitas ${plan.name} · ${plan.credits.toLocaleString()} credits / month` } } }],
       ...(profile?.stripe_customer ? { customer: profile.stripe_customer } : {}),
       client_reference_id: req.uid, metadata: meta, subscription_data: { metadata: meta },
-      success_url: `${base}/?paid={CHECKOUT_SESSION_ID}`, cancel_url: `${base}/?cancelled=1`,
+      success_url: `${base}/studio?paid={CHECKOUT_SESSION_ID}`, cancel_url: `${base}/studio?cancelled=1`,
     });
     return res.json({ url: s.url });
   }
@@ -222,8 +222,8 @@ app.post('/api/checkout', limit('checkout', 15, 10), wrap(async (req, res) => {
     }],
     client_reference_id: req.uid,
     metadata: { user_id: req.uid, credits: String(pack.credits), pack: pack.id },
-    success_url: `${base}/?paid={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${base}/?cancelled=1`,
+    success_url: `${base}/studio?paid={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${base}/studio?cancelled=1`,
   });
   res.json({ url: session.url });
 }));
@@ -243,7 +243,7 @@ app.post('/api/billing/portal', wrap(async (req, res) => {
   const profile = await store.getProfile(req.uid);
   if (!profile?.stripe_customer) throw fail('No subscription on this account yet');
   const base = config.publicUrl || `${req.protocol}://${req.get('host')}`;
-  const s = await stripe.billingPortal.sessions.create({ customer: profile.stripe_customer, return_url: `${base}/` });
+  const s = await stripe.billingPortal.sessions.create({ customer: profile.stripe_customer, return_url: `${base}/studio` });
   res.json({ url: s.url });
 }));
 
@@ -451,6 +451,7 @@ app.delete('/api/jobs/:id', wrap(async (req, res) => {
 }));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
-app.get('*', (req, res) => res.sendFile(path.join(ROOT, 'public', 'index.html')));
+app.get(['/studio', '/studio/'], (req, res) => res.sendFile(path.join(ROOT, 'public', 'studio.html')));
+app.get('*', (req, res) => res.sendFile(path.join(ROOT, 'public', 'index.html'))); // landing page
 
 export default app;

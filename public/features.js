@@ -62,39 +62,80 @@ const portraitCache = new Map();
 const portrait = (look, key) => { const k = key || JSON.stringify(look); if (!portraitCache.has(k)) portraitCache.set(k, drawPortrait(look)); return portraitCache.get(k); };
 
 // ---------- home (bento) ----------
+// ---------- home: one prompt, four kinds of content (RekaLab-simple, Kravitas bento) ----------
+const HOME_TYPES = {
+  video: { ic: '🎬', t: '60s video', d: 'Faceless video with voice-over and captions', ph: 'What is the video about? e.g. Misteri Piramid Giza, 5 tips jimat duit, resepi kek pandan', ex: ['Misteri Piramid Giza', '5 tips jimat duit gaji RM2k', 'Resepi kek pandan lembut'], btn: 'Generate video' },
+  ad: { ic: '🛍', t: 'Product ad', d: 'TikTok Shop / Shopee ad from your product photo', ph: 'What are you selling? e.g. Serum vitamin C, RM29, flash sale hari ni', ex: ['Serum vitamin C, RM29, flash sale', 'Tudung bawal satin, free shipping', 'Air fryer 6L, harga jimat'], btn: 'Next: add product' },
+  image: { ic: '🖼', t: 'Image', d: 'Product shots and posters in seconds', ph: 'Describe the image. e.g. Iced kopi on a marble table, morning light', ex: ['Iced kopi on a marble table', 'Raya hamper flatlay, gold and green', 'Skincare bottle on wet stone'], btn: 'Generate images' },
+  ideas: { ic: '✍️', t: 'Ideas & captions', d: 'Hooks, captions and content ideas', ph: 'What do you sell or post about? e.g. kedai kek online di Shah Alam', ex: ['Kedai kek online di Shah Alam', 'Affiliate produk kecantikan', 'Kopitiam baru buka'], btn: 'Get ideas' },
+};
+const HOME = { type: 'video', prompt: '', lang: 'ms' };
+function homeInput() {
+  const p = HOME.prompt.trim();
+  if (HOME.type === 'video') return { tool: 'story', input: { ...DEFAULTS.story(), prompt: p, scenes: 8, tier: 'motion', lang: HOME.lang, voice: HOME.lang === 'ms' ? 'mm:Friendly_Person' : 'el:Aria' } };
+  if (HOME.type === 'image') return { tool: 'image', input: { ...DEFAULTS.image(), prompt: p } };
+  return null;
+}
+async function homeEstimate() {
+  const el = $('#hm-est'); if (!el) return;
+  const x = homeInput();
+  if (!x) { el.textContent = HOME.type === 'ideas' ? '✦ 2' : ''; return; }
+  try { el.textContent = `✦ ${(await api('/api/estimate', x)).credits}`; } catch { el.textContent = ''; }
+}
+async function homeGo(btn) {
+  const p = HOME.prompt.trim();
+  if (!p) { toast('Type what you want first', true); return $('#hm-p')?.focus(); }
+  if (HOME.type === 'ad') {
+    setMode('ad'); S.forms.ad = { ...(S.forms.ad || DEFAULTS.ad()), prompt: p, lang: HOME.lang };
+    renderAll(); window.scrollTo({ top: 0 });
+    if (!S.products.some((x) => !isSample(x))) productModal(); else toast('Pick your product and hit Generate');
+    return;
+  }
+  if (HOME.type === 'ideas') { setMode('ad'); S.forms.ad = { ...(S.forms.ad || DEFAULTS.ad()), prompt: p, lang: HOME.lang }; renderAll(); return runBrainstorm(); }
+  btn.disabled = true;
+  try {
+    const job = await api('/api/jobs', homeInput());
+    S.jobs.unshift(job); renderFeed(); poll(); load().then(() => renderFeed());
+    $('#feed').scrollIntoView({ behavior: 'smooth' });
+    toast(HOME.type === 'video' ? 'Making your video… about 1–3 minutes' : 'Making your images…');
+  } catch (e) { toast(e.message, true); if (e.code === 'credits' || e.code === 'plan') accountModal(); }
+  btn.disabled = false;
+}
 function renderHome() {
   const a = S.app;
-  const presets = a.catalog.avatars || [];
   const plan = (CFG.plans || []).find((p) => p.id === a.plan);
   const cheapest = [...(CFG.plans || [])].sort((x, y) => x.price - y.price)[0];
-  const mine = (x) => !isSample(x);
-  // the whole beginner journey lives in the hero: 3 steps, one button for whatever is next
-  const steps = [
-    { done: S.products.some(mine), t: 'Add your product', d: 'One clear photo + price', act: 'data-new="product"' },
-    { done: S.friends.some(mine), t: 'Choose a face', d: 'Your photo or an AI avatar', act: 'data-act="avatars"' },
-    { done: S.jobs.some((j) => j.tool === 'ugc' && j.status === 'done' && j.stage !== 'review'), t: 'Make your ad', d: 'Check the script, then approve', act: 'data-go="ad"' },
-  ];
-  const next = steps.findIndex((x) => !x.done);
-  const cta = next === -1 ? { t: 'Make another ad', act: 'data-go="ad"' } : { t: ['Add your product', 'Choose a face', 'Make your ad'][next], act: steps[next].act };
+  const T = HOME_TYPES[HOME.type];
   $('#presets').innerHTML = `
-    <section class="bento simple">
+    <section class="bento rk">
       <div class="bx b-hero">
-        <span class="eyebrow">For TikTok Shop & Shopee affiliates</span>
-        <h1>Make a product ad<br>in 3 easy steps.</h1>
-        <ol class="h-steps">${steps.map((x, i) => `<li class="${x.done ? 'done' : i === next ? 'next' : ''}" ${x.done ? '' : x.act}>
-          <span class="n">${x.done ? '✓' : i + 1}</span><span><b>${x.t}</b><small>${x.d}</small></span></li>`).join('')}</ol>
-        <button class="cta" ${cta.act}>${cta.t} →</button>
-        <span class="stat">From ≈ 9 credits per ad</span>
+        <span class="eyebrow">One prompt · ready in minutes</span>
+        <h1>What do you want<br>to make today?</h1>
+        <div class="hm-box">
+          <textarea id="hm-p" rows="3" maxlength="2000" placeholder="${esc(T.ph)}">${esc(HOME.prompt)}</textarea>
+          <div class="hm-row">
+            <div class="hm-lang">${[['ms', 'BM'], ['en', 'EN']].map(([k, l]) => `<button data-hl="${k}" class="${HOME.lang === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+            <button class="cta" id="hm-go">${T.btn} <span id="hm-est"></span></button>
+          </div>
+        </div>
+        <div class="hm-ex"><small>Try:</small>${T.ex.map((x) => `<button data-hx="${esc(x)}">${esc(x)}</button>`).join('')}</div>
       </div>
-      <a class="bx b-av" href="#" data-act="avatars"><div class="faces">${presets.slice(0, 4).map((p) => `<img src="${portrait(p.look, p.id)}" alt="">`).join('')}</div>
-        <h3>No face? No problem.</h3><p>Pick a ready-made AI creator.</p></a>
-      <a class="bx" href="#" data-act="brainstorm"><span class="ic">✨</span><h3>Need ideas?</h3><p>Get hooks and angles from your product photo.</p></a>
-      <a class="bx b-plan" href="#" data-act="plans"><span class="eyebrow">${plan ? `${esc(plan.name)} plan` : 'Your credits'}</span><h3>✦ ${a.credits.toLocaleString()}</h3>
-        <p>${plan ? `${plan.credits.toLocaleString()} credits every month` : cheapest ? `Plans from ${RM(cheapest.price)}/month` : 'Top up anytime'}</p><span class="cta sm">${plan ? 'Manage' : 'See plans'} →</span></a>
+      ${Object.entries(HOME_TYPES).map(([k, x]) => `<button class="bx b-type ${k === HOME.type ? 'on' : ''}" data-ht="${k}"><span class="ic">${x.ic}</span><h3>${x.t}</h3><p>${x.d}</p></button>`).join('')}
+      <a class="bx b-plan" href="#" data-act="plans"><span class="eyebrow">${plan ? `${esc(plan.name)} plan` : 'Credits'}</span><h3>✦ ${a.credits.toLocaleString()}</h3>
+        <p>${plan ? `${plan.credits.toLocaleString()} every month` : cheapest ? `Plans from ${RM(cheapest.price)}/month` : 'Top up anytime'}</p></a>
       <div class="bx b-more"><h3>More tools</h3><div class="mt">
-        <button data-go="video">🎬 Video</button><button data-go="image">🖼 Image</button><button data-go="talk">🗣 Talk</button>
-        <button data-go="story">📽 Story</button><button data-go="voice">🎙 Voice</button><button data-go="schedule">📤 Auto-post</button></div></div>
+        <button data-go="video">🎬 Camera video</button><button data-go="talk">🗣 Talking avatar</button><button data-go="story">🧩 Storyboard</button>
+        <button data-go="voice">🎙 Voice-over</button><button data-act="avatars">👤 AI avatars</button><button data-go="schedule">📤 Auto-post</button></div></div>
     </section>`;
+  const ta = $('#hm-p');
+  ta.onkeydown = (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) homeGo($('#hm-go')); };
+  ta.oninput = () => { HOME.prompt = ta.value; clearTimeout(homeEstimate.t); homeEstimate.t = setTimeout(homeEstimate, 400); };
+  const sec = $('#presets');
+  sec.querySelectorAll('[data-ht]').forEach((b) => (b.onclick = () => { HOME.type = b.dataset.ht; renderHome(); $('#hm-p').focus(); }));
+  sec.querySelectorAll('[data-hx]').forEach((b) => (b.onclick = () => { HOME.prompt = b.dataset.hx; ta.value = HOME.prompt; homeEstimate(); }));
+  sec.querySelectorAll('[data-hl]').forEach((b) => (b.onclick = () => { HOME.lang = b.dataset.hl; sec.querySelectorAll('[data-hl]').forEach((x) => x.classList.toggle('on', x === b)); homeEstimate(); }));
+  $('#hm-go').onclick = (e) => homeGo(e.currentTarget);
+  homeEstimate();
 }
 
 // ---------- avatars ----------

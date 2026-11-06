@@ -449,3 +449,28 @@ a.b-av:hover .faces img{filter:none}
 @media (max-width:560px){.bento.simple .b-hero{padding:22px}.bento.simple .b-hero .stat{position:static;align-self:flex-start;margin-bottom:10px;order:-1}}
 @media (max-width:560px){.bento.simple{grid-template-columns:1fr 1fr;grid-auto-rows:auto}.bento.simple .b-hero,.bento.simple .b-more,.bento.simple .b-plan{grid-column:span 2}.bento.simple .bx:not(.b-hero){min-height:150px}.bento.simple .b-av .faces img{width:40px;height:40px}.bento.simple .b-plan{min-height:0}.bento.simple .b-plan .eyebrow{position:static}}
 @media (max-width:560px){.bento.simple .b-av .faces,.bento.simple .bx .ic{position:static;margin-bottom:auto;padding-bottom:10px}}
+/* ---------- home: one-prompt bento ---------- */
+.bento.rk{grid-auto-rows:minmax(180px,auto)}
+.bento.rk .b-hero{justify-content:flex-start;padding:30px;gap:0}
+.bento.rk .b-hero h1{margin:8px 0 18px}
+.hm-box{border:1px solid #000;background:#fff}
+.hm-box textarea{display:block;width:100%;border:0;outline:0;resize:none;background:transparent;color:#000;font:inherit;font-size:16px;line-height:1.45;padding:14px 16px 6px;min-height:92px}
+.hm-box textarea::placeholder{color:#8a8a8a}
+.hm-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 8px 8px 12px;border-top:1px solid #eee}
+.hm-lang{display:flex;border:1px solid #000}
+.hm-lang button{background:#fff;color:#000;border:0;padding:6px 10px;font-weight:700;font-size:12px;cursor:pointer}
+.hm-lang button.on{background:#000;color:#fff}
+.b-hero .hm-row .cta{margin:0;border:0;cursor:pointer;font:inherit;font-weight:800;padding:11px 16px}
+#hm-est{opacity:.7;font-weight:600;margin-left:6px}
+.hm-ex{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px}
+.hm-ex small{color:#666;font-size:12px;margin-right:2px}
+.hm-ex button{background:#fff;border:1px solid #ccc;color:#000;padding:5px 9px;font-size:12px;cursor:pointer}
+.hm-ex button:hover{border-color:#000}
+button.bx{font:inherit;text-align:left;cursor:pointer}
+.b-type:hover{border-color:#fff;background:#121212}
+.b-type.on{border-color:#fff;box-shadow:inset 0 0 0 1px #fff}
+.b-type.on::after{content:"✓ Selected";position:absolute;top:18px;right:18px;font-size:11px;font-weight:800;background:#fff;color:#000;padding:3px 7px}
+.bento.rk .b-more{grid-column:span 3}
+.bento.rk .b-more .mt{grid-template-columns:repeat(3,1fr)}
+@media (max-width:1000px){.bento.rk .b-more{grid-column:span 2}}
+@media (max-width:560px){.bento.rk{grid-template-columns:1fr 1fr;grid-auto-rows:auto}.bento.rk .b-hero,.bento.rk .b-more,.bento.rk .b-plan{grid-column:span 2}.bento.rk .b-hero{padding:20px}.bento.rk .b-type{min-height:130px;padding:14px}.bento.rk .b-type .ic{position:static;margin-bottom:auto;padding-bottom:8px}.bento.rk .b-type p{font-size:12px}.b-type.on::after{top:12px;right:12px;content:"✓"}.bento.rk .b-more .mt{grid-template-columns:1fr 1fr}.bento.rk .b-plan .eyebrow{position:static}.hm-ex button{font-size:11px}}

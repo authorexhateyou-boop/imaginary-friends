@@ -35,7 +35,7 @@ it starts, and the unused part is refunded when it ends (or if it fails or the s
 server.js            API: guest auth, jobs, uploads, Stripe checkout + webhook, admin
 lib/pipelines.js     The tools: each is a series of model calls tracked as a job
 public/index.html    Landing page (/)
-public/studio.html   The studio (/studio): Ad, Video, Image, Voice and Schedule on one page
+public/studio.html   The studio (/studio): Ad, Video, Image, Voice, Edit and Schedule on one page
 lib/models.js        Model IDs, inputs and credit prices
 lib/prompts.js       Script / hook / story prompts (Malaysian affiliate tuned)
 lib/ffmpeg.js        Stitching, voice-over mixing, burned captions, demo media

@@ -88,6 +88,7 @@ const MODES = {
   talk: { tool: 'avatar', label: 'Talk', hidden: true }, // removed from the nav; kept so older creations still open
   story: { tool: 'story', label: 'Story', hidden: true },
   voice: { tool: 'voice', label: 'Voice' },
+  edit: { label: 'Edit' }, // the editor has its own main card (no composer)
   schedule: { label: 'Schedule', page: true },
 };
 const TOOL_MODE = Object.fromEntries(Object.entries(MODES).filter(([, v]) => v.tool).map(([m, v]) => [v.tool, m]));
@@ -686,6 +687,7 @@ function jobModal(id) {
         ${first ? `<a class="btn pri" id="dl" href="${dl(first.url)}" download>⬇ Download</a>` : ''}
         ${j.text ? '<button class="btn" id="cp">Copy text</button>' : ''}
         ${first?.type === 'image' && j.tool !== 'avatarGen' ? '<button class="btn" id="anim">🎬 Animate</button>' : ''}
+        ${j.status === 'done' && media.some((o) => o.type === 'image' || o.type === 'video') ? '<button class="btn" id="toedit">✂ Edit & add sound</button>' : ''}
         ${j.tool === 'avatarGen' && !j.input?.preset && j.status === 'done' ? '<button class="btn pri" id="saveav">＋ Save as friend</button>' : ''}
         ${media.some((o) => o.type === 'video') && j.status === 'done' ? '<button class="btn" id="post">📤 Post / schedule</button>' : ''}
         
@@ -719,6 +721,7 @@ function jobModal(id) {
     const a = $('#anim', m); if (a) a.style.display = cur.type === 'image' ? '' : 'none';
   });
   $('#saveav', m) && ($('#saveav', m).onclick = () => saveAvatarFromJob(j, cur));
+  $('#toedit', m) && ($('#toedit', m).onclick = () => { const o = cur && cur.type !== 'audio' ? cur : media.find((x) => x.type !== 'audio'); closeModal(); editAdd(o, j); setMode('edit'); renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
   $('#post', m) && ($('#post', m).onclick = () => postModal(j, cur?.type === 'video' ? cur : media.find((o) => o.type === 'video')));
   $('#board', m) && ($('#board', m).onclick = () => storyboardModal({ board: j.board, reuseFrom: j.id, input: j.input }));
   $('#cp', m) && ($('#cp', m).onclick = () => navigator.clipboard.writeText(j.text).then(() => toast('Copied'), () => toast('Select the text to copy it', true)));

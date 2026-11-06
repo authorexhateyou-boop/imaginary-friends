@@ -68,6 +68,7 @@
     },
     avatar: (i) => { const t = tierOf(i.tier); const w = String(i.script || '').trim().split(/\s+/).filter(Boolean).length; const sec = w ? Math.max(3, w / 2.6) : i.seconds || 8; return (i.script ? 0 : PRICE.llm) + tts$(i.script || words(sec), t.voice) + talk$(i.tier, sec); },
     story: (i) => { const t = tierOf(i.tier || 'motion'); const sc = i.board?.scenes; const n = sc?.length || i.scenes || 4; return (sc ? 0 : PRICE.llm) + (sc ? sc.reduce((a, x) => a + tts$(x.narration, t.voice), 0) : n * tts$(words(7), t.voice)) + n * (img$(t.image, false) + (i.tier === 'motion' || !i.tier ? 0 : vsec(i.model, 6))); },
+    edit: (i) => 1 + (i.newVoice?.text ? tts$(i.newVoice.text, 'turbo') : 0) + (i.musicPrompt ? credits(30) : 0),
     voice: (i) => (i.kind === 'sfx' ? credits(0.2 * (i.length || 5)) : i.kind === 'music' ? credits(1 * (i.length || 30)) : tts$(i.text || 'x')),
     avatarGen: (i) => PRICE.image * (i.preset ? 1 : Math.min(4, i.count || 4)),
   };
@@ -201,14 +202,29 @@
   };
 
   /** Record a short video from canvas frames: ken-burns camera move + TikTok-style captions. */
-  async function record({ frames, aspect = '9:16', seconds = 4, move = 'dolly-in', captions = '' }) {
+  async function record({ frames, aspect = '9:16', seconds = 4, move = 'dolly-in', captions = '', audio = [] }) {
     if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
     const [W, H] = (SIZE[aspect] || SIZE['9:16']).map((v) => Math.round(v * 0.75 / 2) * 2);
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const ctx = c.getContext('2d');
-    const type = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find((t) => MediaRecorder.isTypeSupported(t));
+    const types = audio.length ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'] : ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+    const type = types.find((t) => MediaRecorder.isTypeSupported(t));
     if (!type) return null;
     const stream = c.captureStream(30);
+    // sound for the editor: each track is played into the recording (not the speakers)
+    let actx = null; const els = [];
+    if (audio.length && window.AudioContext) {
+      try {
+        actx = new AudioContext(); await actx.resume().catch(() => {});
+        const dest = actx.createMediaStreamDestination();
+        for (const a of audio) {
+          const el = new Audio(a.url); el.loop = !!a.loop; els.push(el);
+          const g = actx.createGain(); g.gain.value = a.vol ?? 1;
+          actx.createMediaElementSource(el).connect(g).connect(dest);
+        }
+        dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
+      } catch { actx = null; }
+    }
     const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 2_500_000 });
     const chunks = [];
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -217,6 +233,7 @@
     const per = seconds / frames.length;
     const done = new Promise((res) => (rec.onstop = res));
     rec.start(200);
+    els.forEach((el) => el.play().catch(() => {}));
     const t0 = performance.now();
     await new Promise((resolve) => {
       const tick = () => {
@@ -241,6 +258,7 @@
     });
     rec.stop();
     await done;
+    els.forEach((el) => el.pause()); actx?.close().catch(() => {});
     stream.getTracks().forEach((t) => t.stop());
     return new Blob(chunks, { type: type.split(';')[0] });
   }
@@ -338,6 +356,7 @@
       image: input.prompt?.slice(0, 60) || 'Image', shot: input.prompt?.slice(0, 60) || 'Shot',
       ugc: `${pr?.name || 'Product'} · ${input.format === 'talking' ? 'Talking UGC' : 'Showcase'} ad`,
       avatar: `${fr?.name || 'Avatar'} talking`, story: input.board?.title || input.prompt?.slice(0, 60) || 'Story video',
+      edit: `Edit · ${(input.clips || []).length} clip${(input.clips || []).length === 1 ? '' : 's'}${input.newVoice || input.voiceUrl ? ' + voice' : ''}${input.musicPrompt || input.musicUrl ? ' + music' : ''}`,
       voice: `${input.kind === 'sfx' ? 'Sound effect' : input.kind === 'music' ? 'Music' : 'Voice-over'} · ${String(input.text || '').slice(0, 50)}`,
       avatarGen: input.preset ? `Avatar · ${AVATARS.find((a) => a.id === input.preset)?.name}` : `Avatar · ${input.name || 'custom'}`,
     };
@@ -406,6 +425,35 @@
           }
           job.steps[job.steps.length - 1].status = 'done';
           }
+        }
+        if (tool === 'edit') {
+          const clips = (input.clips || []).slice(0, 6);
+          if (!clips.length) throw err('Add at least one image or video to edit.');
+          const audio = []; let voiceText = '', voiceSec = 0;
+          const secOf = (url) => new Promise((ok) => { const a = new Audio(); a.onloadedmetadata = () => ok(isFinite(a.duration) ? a.duration : 0); a.onerror = () => ok(0); a.src = url; });
+          if (input.newVoice?.text) {
+            await step('Recording voice-over', 1000);
+            voiceText = input.newVoice.text;
+            const b = synthAudio('tts', Math.max(2, voiceText.split(/\s+/).length / 2.6), voiceText);
+            const url = URL.createObjectURL(b); audio.push({ url, vol: 1 }); voiceSec = await secOf(url);
+          } else if (input.voiceUrl) { voiceText = input.voiceText || ''; audio.push({ url: input.voiceUrl, vol: 1 }); voiceSec = await secOf(input.voiceUrl); }
+          if (input.musicPrompt) { await step('Composing background music', 1000); audio.push({ url: URL.createObjectURL(synthAudio('music', 30, input.musicPrompt)), vol: (input.musicVol ?? 20) / 100, loop: true }); }
+          else if (input.musicUrl) audio.push({ url: input.musicUrl, vol: (input.musicVol ?? 20) / 100, loop: true });
+          await step(`Preparing ${clips.length} clip${clips.length === 1 ? '' : 's'}`, 600);
+          const frames = [];
+          for (const c of clips) {
+            if (c.type === 'image') { const im = await loadImg(c.url); if (im) frames.push(im); continue; }
+            const v = document.createElement('video'); v.muted = true; v.src = c.url;
+            await new Promise((ok) => { v.onloadeddata = () => { v.currentTime = Math.min(0.5, (v.duration || 1) / 2); }; v.onseeked = ok; v.onerror = ok; setTimeout(ok, 3000); });
+            if (v.videoWidth) { const cv = document.createElement('canvas'); cv.width = v.videoWidth; cv.height = v.videoHeight; cv.getContext('2d').drawImage(v, 0, 0); frames.push(cv); }
+          }
+          if (!frames.length) throw err('Those clips could not be loaded. Try adding them again.');
+          job.steps.push({ label: voiceSec ? 'Adding voice-over, music & captions' : 'Joining clips', status: 'running' });
+          const seconds = Math.min(30, Math.max(frames.length * 3, voiceSec + 0.4));
+          const v = await record({ frames, aspect: input.aspect, seconds, move: 'dolly-in', captions: input.captions !== false ? voiceText : '', audio });
+          job.steps[job.steps.length - 1].status = 'done';
+          if (voiceText) job.text = voiceText;
+          if (v) await out('video', v, 'Edited video');
         }
         if (tool === 'voice') {
           const kind = input.kind || 'tts';

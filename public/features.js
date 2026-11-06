@@ -86,8 +86,8 @@ function stageHTML(label) {
   return `<div class="sc cam-${SHOT.camera}" style="--h:${hueOf(SHOT.prompt)};filter:${STYLE_FX[SHOT.style] || 'none'}"><div class="sun"></div><div class="mt"></div><div class="who ${who ? 'ph' : ''}" style="${who}">${who ? '' : esc((f?.name || 'K')[0].toUpperCase())}</div></div><div class="vig"></div><div class="hud">${esc(label)}</div>`;
 }
 // ---------- studio: one page for Ad, Video, Image, Voice and Schedule ----------
-const TOOLS = [['ad', 'Ad'], ['video', 'Video'], ['image', 'Image'], ['voice', 'Voice'], ['schedule', 'Schedule']];
-const TOOL_JOBS = { ad: ['ugc'], video: ['shot', 'story'], image: ['image', 'avatarGen'], voice: ['voice'], schedule: ['ugc', 'shot', 'story', 'avatar'] };
+const TOOLS = [['ad', 'Ad'], ['video', 'Video'], ['image', 'Image'], ['voice', 'Voice'], ['edit', 'Edit'], ['schedule', 'Schedule']];
+const TOOL_JOBS = { ad: ['ugc'], video: ['shot', 'story'], image: ['image', 'avatarGen'], voice: ['voice'], edit: ['edit'], schedule: ['ugc', 'shot', 'story', 'avatar'] };
 function recentJobs() {
   const want = TOOL_JOBS[S.mode] || [];
   const mine = S.jobs.filter((j) => want.includes(j.tool));
@@ -122,6 +122,9 @@ async function shotGo(btn) {
 function studioTick() {
   const strip = $('#hs-strip'); if (!strip) return;
   strip.innerHTML = stripHTML();
+  const made = S.jobs.filter((j) => (TOOL_JOBS[S.mode] || []).includes(j.tool));
+  const cnt = $('.zz-count'); if (cnt) cnt.innerHTML = `<b>${made.length}</b> made · <b>${made.reduce((a, j) => a + (j.cost || 0), 0)}</b> credits`;
+  if (S.mode === 'edit') return editTick();
   if (S.mode !== 'video') return;
   const j = SHOT.job && S.jobs.find((x) => x.id === SHOT.job);
   const stage = $('#hs-stage'); if (!j || !stage) return;
@@ -134,6 +137,150 @@ function studioTick() {
     SHOT.job = null;
   } else { stage.innerHTML = stageHTML('Failed: ' + (j.error || '')); SHOT.job = null; }
 }
+
+// ----- editor: clips + voice + music + captions, then post -----
+const EDIT = { clips: [], voiceMode: 'none', voiceUrl: '', voiceText: '', newText: '', voice: 'mm:Lively_Girl', lang: 'ms', musicMode: 'none', musicUrl: '', musicPrompt: 'Upbeat lo-fi beat for a product video', musicVol: 20, captions: true, keepSound: true, aspect: '9:16', job: null };
+const EDIT_LANGS = { ms: 'Bahasa Melayu', en: 'English', manglish: 'Manglish' };
+function editAdd(o, j) {
+  if (!o?.url || o.type === 'audio') return;
+  if (EDIT.clips.length >= 6) return toast('Up to 6 clips per edit', true);
+  EDIT.clips.push({ url: o.url, type: o.type === 'image' ? 'image' : 'video', label: (o.label || j?.title || '').slice(0, 40) });
+  if (j?.text && !EDIT.newText) EDIT.newText = j.text.split('\n\n')[0].slice(0, 400);
+}
+function mediaLibrary() {
+  const out = [];
+  for (const j of S.jobs) {
+    if (j.status !== 'done') continue;
+    for (const o of j.outputs) if ((o.type === 'image' || o.type === 'video') && o.url) out.push({ ...o, job: j });
+    if (out.length >= 24) break;
+  }
+  return out;
+}
+function audioLibrary(kind) {
+  return S.jobs.filter((j) => j.status === 'done' && j.tool === 'voice' && (kind === 'voice' ? (j.input?.kind || 'tts') === 'tts' : j.input?.kind === 'music' || j.input?.kind === 'sfx'))
+    .map((j) => ({ url: j.outputs.find((o) => o.type === 'audio')?.url, text: j.text || j.input?.text || '', title: j.title, id: j.id })).filter((x) => x.url);
+}
+function editInput() {
+  const i = { clips: EDIT.clips.map((c) => ({ url: c.url, type: c.type })), captions: EDIT.captions, keepSound: EDIT.keepSound, aspect: EDIT.aspect };
+  if (EDIT.voiceMode === 'new' && EDIT.newText.trim()) i.newVoice = { text: EDIT.newText.trim(), voice: EDIT.voice, lang: EDIT.lang };
+  if (EDIT.voiceMode === 'library' && EDIT.voiceUrl) { i.voiceUrl = EDIT.voiceUrl; i.voiceText = EDIT.voiceText; }
+  if (EDIT.musicMode === 'library' && EDIT.musicUrl) { i.musicUrl = EDIT.musicUrl; i.musicVol = EDIT.musicVol; }
+  if (EDIT.musicMode === 'new' && EDIT.musicPrompt.trim()) { i.musicPrompt = EDIT.musicPrompt.trim(); i.musicVol = EDIT.musicVol; }
+  return i;
+}
+async function editEstimate() {
+  const el = $('#ed-est'); if (!el) return;
+  if (!EDIT.clips.length) { el.textContent = ''; return; }
+  try { el.textContent = `✦ ${(await api('/api/estimate', { tool: 'edit', input: editInput() })).credits}`; } catch { el.textContent = ''; }
+}
+function seg(name, cur, opts) { return `<div class="ed-seg">${opts.map(([k, l]) => `<button data-${name}="${k}" class="${k === cur ? 'on' : ''}">${l}</button>`).join('')}</div>`; }
+function editStage() {
+  const j = EDIT.job && S.jobs.find((x) => x.id === EDIT.job);
+  if (j?.status === 'running') {
+    const done = j.steps.filter((x) => x.status === 'done').length;
+    return `<div class="hs-run"><i></i><small>${esc(j.steps.find((x) => x.status === 'running')?.label || 'Starting')}…</small></div><div class="prog"><i style="width:${Math.round(((done + 0.5) / (j.steps.length + 2)) * 100)}%"></i></div>`;
+  }
+  if (j?.status === 'done') { const v = j.outputs.find((o) => o.type === 'video'); if (v) return `<video src="${v.url}#t=0.2" controls playsinline preload="metadata"></video><div class="hud">DONE · READY TO POST</div>`; }
+  const c = EDIT.clips[0];
+  if (!c) return '<div class="ed-empty"><b>Add clips from your library</b><small>Pick images or videos on the right, then add a voice-over and music.</small></div>';
+  return `${c.type === 'video' ? `<video src="${c.url}#t=0.3" muted playsinline preload="metadata"></video>` : `<img src="${c.url}" alt="">`}<div class="hud">PREVIEW · ${EDIT.clips.length} CLIP${EDIT.clips.length > 1 ? 'S' : ''}</div>`;
+}
+function renderEditor(box) {
+  const voices = audioLibrary('voice'), music = audioLibrary('music');
+  const vopts = voiceOptions();
+  const j = EDIT.job && S.jobs.find((x) => x.id === EDIT.job);
+  box.innerHTML = `
+    <div class="ed-grid">
+      <div class="zz-stagewrap"><div class="zz-stage ed-stage" id="ed-stage" style="aspect-ratio:${EDIT.aspect.replace(':', '/')}">${editStage()}</div></div>
+      <div class="ed-tracks">
+        <div class="ed-track"><span class="ed-lab">🎞 Clips</span>
+          <div class="ed-clips">${EDIT.clips.map((c, k) => `<div class="ed-clip"><span class="ed-n">${k + 1}</span>${c.type === 'video' ? `<video src="${c.url}#t=0.3" muted preload="metadata"></video>` : `<img src="${c.url}" alt="">`}<div class="ed-ctl"><button data-mv="${k}:-1" aria-label="Move left" ${k ? '' : 'disabled'}>‹</button><button data-rm="${k}" aria-label="Remove">✕</button><button data-mv="${k}:1" aria-label="Move right" ${k < EDIT.clips.length - 1 ? '' : 'disabled'}>›</button></div></div>`).join('')}
+            ${EDIT.clips.length < 6 ? '<button class="ed-add" data-edlib>＋<small>Add</small></button>' : ''}</div></div>
+        <div class="ed-track"><span class="ed-lab">🎙 Voice</span>
+          ${seg('vm', EDIT.voiceMode, [['none', 'None'], ['library', 'My voice-overs'], ['new', 'Write new']])}
+          ${EDIT.voiceMode === 'library' ? (voices.length ? `<select class="in" id="ed-vlib">${voices.map((v) => `<option value="${v.url}" ${v.url === EDIT.voiceUrl ? 'selected' : ''}>${esc(v.text.slice(0, 70) || v.title)}</option>`).join('')}</select>` : '<p class="hs-empty">No voice-overs yet. Make one in Voice, or write a new one here.</p>') : ''}
+          ${EDIT.voiceMode === 'new' ? `<textarea class="in" id="ed-text" rows="3" maxlength="3000" placeholder="What should the voice say? e.g. Serum ni memang best, kulit glowing dalam seminggu!">${esc(EDIT.newText)}</textarea>
+            <div class="zz-row two"><select class="in" id="ed-voice">${Object.entries(vopts).map(([k, l]) => `<option value="${k}" ${k === EDIT.voice ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select><select class="in" id="ed-lang">${Object.entries(EDIT_LANGS).map(([k, l]) => `<option value="${k}" ${k === EDIT.lang ? 'selected' : ''}>${l}</option>`).join('')}</select></div>` : ''}
+        </div>
+        <div class="ed-track"><span class="ed-lab">🎵 Music</span>
+          ${seg('mm', EDIT.musicMode, [['none', 'None'], ['library', 'My music'], ['new', 'Generate']])}
+          ${EDIT.musicMode === 'library' ? (music.length ? `<select class="in" id="ed-mlib">${music.map((v) => `<option value="${v.url}" ${v.url === EDIT.musicUrl ? 'selected' : ''}>${esc(v.text.slice(0, 70) || v.title)}</option>`).join('')}</select>` : '<p class="hs-empty">No music yet. Generate one here, or make it in Voice → Music.</p>') : ''}
+          ${EDIT.musicMode === 'new' ? `<input class="in" id="ed-mp" maxlength="300" value="${esc(EDIT.musicPrompt)}" placeholder="Describe the music, e.g. upbeat lo-fi, chill acoustic"><small class="ed-hint">New music costs about 57 credits for 30 seconds. Music you already made is free to reuse.</small>` : ''}
+          ${EDIT.musicMode !== 'none' ? `<label class="ed-vol">Music volume <input type="range" id="ed-vol" min="5" max="60" value="${EDIT.musicVol}"><span>${EDIT.musicVol}%</span></label>` : ''}
+        </div>
+        <div class="ed-opts">
+          <label class="ed-chk"><input type="checkbox" id="ed-cap" ${EDIT.captions ? 'checked' : ''}> Captions</label>
+          <label class="ed-chk"><input type="checkbox" id="ed-keep" ${EDIT.keepSound ? 'checked' : ''}> Keep original sound</label>
+          <select class="in" id="ed-ar" aria-label="Format">${Object.entries(HOME_ASPECT).map(([k, l]) => `<option value="${k}" ${k === EDIT.aspect ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        </div>
+        <div class="ed-go-row">
+          <button class="go zz-go" id="ed-go" ${EDIT.clips.length ? '' : 'disabled'}>Render video <span class="c" id="ed-est"></span></button>
+          ${j?.status === 'done' ? '<button class="btn pri" id="ed-post">📤 Post / schedule</button>' : ''}
+        </div>
+      </div>
+    </div>`;
+  const rerender = () => renderEditor(box);
+  box.querySelectorAll('[data-vm]').forEach((b) => (b.onclick = () => { EDIT.voiceMode = b.dataset.vm; if (EDIT.voiceMode === 'library' && !EDIT.voiceUrl && voices[0]) { EDIT.voiceUrl = voices[0].url; EDIT.voiceText = voices[0].text; } rerender(); }));
+  box.querySelectorAll('[data-mm]').forEach((b) => (b.onclick = () => { EDIT.musicMode = b.dataset.mm; if (EDIT.musicMode === 'library' && !EDIT.musicUrl && music[0]) EDIT.musicUrl = music[0].url; rerender(); }));
+  box.querySelectorAll('[data-rm]').forEach((b) => (b.onclick = () => { EDIT.clips.splice(+b.dataset.rm, 1); rerender(); fillSides(); }));
+  box.querySelectorAll('[data-mv]').forEach((b) => (b.onclick = () => { const [k, d] = b.dataset.mv.split(':').map(Number); const c = EDIT.clips.splice(k, 1)[0]; EDIT.clips.splice(k + d, 0, c); rerender(); }));
+  box.querySelector('[data-edlib]') && (box.querySelector('[data-edlib]').onclick = () => { const l = $('#zz-s1'); l.scrollIntoView({ behavior: 'smooth', block: 'center' }); l.classList.add('flash'); setTimeout(() => l.classList.remove('flash'), 900); });
+  const on = (id, ev, fn) => { const el = $(id); if (el) el[ev] = fn; };
+  const later = () => { clearTimeout(later.t); later.t = setTimeout(editEstimate, 350); };
+  on('#ed-vlib', 'onchange', (e) => { EDIT.voiceUrl = e.target.value; EDIT.voiceText = voices.find((v) => v.url === e.target.value)?.text || ''; editEstimate(); });
+  on('#ed-text', 'oninput', (e) => { EDIT.newText = e.target.value; later(); });
+  on('#ed-voice', 'onchange', (e) => { EDIT.voice = e.target.value; });
+  on('#ed-lang', 'onchange', (e) => { EDIT.lang = e.target.value; });
+  on('#ed-mlib', 'onchange', (e) => { EDIT.musicUrl = e.target.value; });
+  on('#ed-mp', 'oninput', (e) => { EDIT.musicPrompt = e.target.value; later(); });
+  on('#ed-vol', 'oninput', (e) => { EDIT.musicVol = +e.target.value; e.target.nextElementSibling.textContent = EDIT.musicVol + '%'; });
+  on('#ed-cap', 'onchange', (e) => { EDIT.captions = e.target.checked; });
+  on('#ed-keep', 'onchange', (e) => { EDIT.keepSound = e.target.checked; });
+  on('#ed-ar', 'onchange', (e) => { EDIT.aspect = e.target.value; $('#ed-stage').style.aspectRatio = EDIT.aspect.replace(':', '/'); });
+  on('#ed-go', 'onclick', async (e) => {
+    const btn = e.currentTarget;
+    if (EDIT.voiceMode === 'new' && !EDIT.newText.trim()) { toast('Write what the voice should say, or pick None', true); return $('#ed-text')?.focus(); }
+    btn.disabled = true;
+    try {
+      const job = await api('/api/jobs', { tool: 'edit', input: editInput() });
+      S.jobs.unshift(job); EDIT.job = job.id; poll(); renderFeed(); rerender();
+      toast('Rendering your edit…');
+    } catch (err) { toast(err.message, true); btn.disabled = false; if (err.code === 'credits' || err.code === 'plan') accountModal(); }
+  });
+  on('#ed-post', 'onclick', () => { const jj = S.jobs.find((x) => x.id === EDIT.job); postModal(jj, jj.outputs.find((o) => o.type === 'video')); });
+  editEstimate();
+}
+function editTick() {
+  const j = EDIT.job && S.jobs.find((x) => x.id === EDIT.job);
+  if (!j) return;
+  const stage = $('#ed-stage'); if (!stage) return;
+  if (j.status === 'running') { stage.innerHTML = editStage(); return; }
+  if (!editTick.done?.has(j.id)) { (editTick.done ||= new Set()).add(j.id); renderMain(); if (j.status === 'error') toast(j.error || 'The edit failed', true); }
+}
+function libraryCard() {
+  const items = mediaLibrary();
+  return `<h2>Your library</h2><p class="sub">Tap to add to the timeline. Up to 6 clips.</p>
+    <div class="ed-lib">${items.length ? items.map((o, k) => `<button class="ed-li" data-addclip="${k}" title="${esc(o.label || o.job.title)}">${o.type === 'video' ? `<video src="${o.url}#t=0.3" muted preload="metadata"></video><span class="ed-ty">▶</span>` : `<img src="${o.url}" alt="">`}</button>`).join('') : '<p class="hs-empty">Nothing yet. Make an image or video first.</p>'}</div>`;
+}
+function soundsCard() {
+  const list = [...audioLibrary('voice').map((x) => ({ ...x, k: 'voice' })), ...audioLibrary('music').map((x) => ({ ...x, k: 'music' }))].slice(0, 6);
+  return `<h2>Voice-overs & music</h2><p class="sub">Your audio. Tap to use it in this edit.</p>
+    <div class="zz-chl">${list.length ? list.map((x) => `<button class="zz-ch" data-useaudio="${x.k}|${x.url}"><span class="av">${x.k === 'voice' ? '🎙' : '🎵'}</span><span><b>${esc((x.text || x.title).slice(0, 36))}</b><small>Use as ${x.k === 'voice' ? 'voice-over' : 'music'}</small></span></button>`).join('') : '<p class="hs-empty">No audio yet. Write a voice-over in the editor, or make one in Voice.</p>'}</div>`;
+}
+function finishCard() {
+  return `<h2>Make → edit → post</h2><ol class="zz-steps"><li><b>Add clips</b> from your library, in the order you want.</li><li><b>Add sound:</b> a voice-over, music and captions.</li><li><b>Render</b>, then post or schedule it straight from here.</li></ol>`;
+}
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('#presets [data-addclip]');
+  if (a) { const o = mediaLibrary()[+a.dataset.addclip]; editAdd(o, o.job); return renderMain(); }
+  const u = e.target.closest('#presets [data-useaudio]');
+  if (u) {
+    const [k, url] = u.dataset.useaudio.split(/\|(.*)/);
+    if (k === 'voice') { EDIT.voiceMode = 'library'; EDIT.voiceUrl = url; EDIT.voiceText = audioLibrary('voice').find((x) => x.url === url)?.text || ''; }
+    else { EDIT.musicMode = 'library'; EDIT.musicUrl = url; }
+    renderMain(); toast(k === 'voice' ? 'Voice-over added' : 'Music added');
+  }
+});
 
 // ----- side cards -----
 function characterCard() {
@@ -182,6 +329,7 @@ const SIDES = {
   image: [characterCard, presetCard, styleCard],
   voice: [voiceCard, presetCard, creditsCard],
   schedule: [readyCard, presetCard, creditsCard],
+  edit: [libraryCard, soundsCard, finishCard],
 };
 function fillSides() {
   const [a, b, c] = SIDES[S.mode] || SIDES.ad;
@@ -241,6 +389,7 @@ function renderMain() {
     return;
   }
   if (S.mode === 'schedule') { box.innerHTML = '<div id="sched"></div>'; renderSchedule(); return; }
+  if (S.mode === 'edit') return renderEditor(box);
   box.innerHTML = `${mainStage()}<p class="zz-lead">${HERO[S.mode]?.[1] || ''}</p><div class="composer inline" id="composer"></div>`;
   renderComposer();
 }

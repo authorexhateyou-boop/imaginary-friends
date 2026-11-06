@@ -398,6 +398,12 @@ function cleanInput(input) {
     };
     if (!i.board.scenes.length) delete i.board;
   }
+  if (i.clips != null) i.clips = (Array.isArray(i.clips) ? i.clips : []).slice(0, 6).map((c) => ({ url: str(c?.url, 600), type: c?.type === 'image' ? 'image' : 'video' })).filter((c) => store.isOwnUrl(c.url));
+  for (const k of ['voiceUrl', 'musicUrl']) if (i[k] != null && !(typeof i[k] === 'string' && store.isOwnUrl(i[k]))) delete i[k];
+  if (i.voiceText != null) i.voiceText = str(i.voiceText, 5000);
+  if (i.musicPrompt != null) i.musicPrompt = str(i.musicPrompt, 300);
+  if (i.newVoice) i.newVoice = { text: str(i.newVoice.text, 3000), voice: str(i.newVoice.voice, 80), lang: str(i.newVoice.lang, 10) };
+  if (i.newVoice && !i.newVoice.text.trim()) delete i.newVoice;
   if (i.look && typeof i.look === 'object') i.look = Object.fromEntries(Object.entries(i.look).slice(0, 10).map(([k, v]) => [str(k, 20), str(v, 80)]));
   return i;
 }
@@ -415,6 +421,7 @@ app.post('/api/jobs', limit('jobs', 60, 60), wrap(async (req, res) => {
   const running = (await Promise.all(recent.map(expireStale))).filter((j) => j.status === 'running').length;
   if (running >= config.maxRunningJobs) throw fail(`You already have ${running} generations running. Wait for one to finish.`, 429);
   const input = cleanInput(req.body.input || {});
+  if (req.body.tool === 'edit' && !input.clips?.length) throw fail('Add at least one of your images or videos to edit.');
   const L = await lookups(req.uid);
   checkPlan(await planOf(req.uid), req.body.tool, input);
   if (input.reuseFrom) L.prev = await store.getJob(req.uid, String(input.reuseFrom)); // reuse unchanged scenes (own jobs only)

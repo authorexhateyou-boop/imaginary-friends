@@ -24,8 +24,8 @@ async function initSession() {
   if (CFG.mode === 'preview') {
     await loadScript('mock.js');
     Object.assign(CFG, { payments: true, social: true, currency: 'MYR', plans: CFG.plans || [
-      { id: 'basic', name: 'Basic', credits: 600, price: 39, features: ['Motion ads & faceless stories', 'Up to 3 variations per ad', 'All voices + brainstorm'] },
-      { id: 'starter', name: 'Starter', credits: 1000, price: 59, features: ['Everything in Basic', 'Lite & Fast AI video', 'Video and Talk tools'] },
+      { id: 'basic', name: 'Basic', credits: 600, price: 39, features: ['Motion ads (animated photo + voice)', 'Up to 3 variations per ad', 'All voices + brainstorm'] },
+      { id: 'starter', name: 'Starter', credits: 1000, price: 59, features: ['Everything in Basic', 'Lite & Fast AI video', 'Camera video shots'] },
       { id: 'creator', name: 'Creator', credits: 2500, price: 129, tag: 'Popular', features: ['Everything in Starter', 'Studio lip-sync + Kling', '5 variations per ad', 'Voice cloning & auto-post'] },
       { id: 'pro', name: 'Pro', credits: 6500, price: 299, tag: 'Best value', features: ['Everything in Creator', 'Premium lip-sync (OmniHuman)', 'Kling Pro video'] }], packs: CFG.packs || [
       { id: 'small', name: 'Small', credits: 300, price: 25 },
@@ -85,8 +85,8 @@ const MODES = {
   ad: { tool: 'ugc', label: 'Ad', hot: true },
   video: { tool: 'shot', label: 'Video' },
   image: { tool: 'image', label: 'Image' },
-  talk: { tool: 'avatar', label: 'Talk' },
-  story: { tool: 'story', label: 'Story' },
+  talk: { tool: 'avatar', label: 'Talk', hidden: true }, // removed from the nav; kept so older creations still open
+  story: { tool: 'story', label: 'Story', hidden: true },
   voice: { tool: 'voice', label: 'Voice' },
   schedule: { label: 'Schedule', page: true },
 };
@@ -168,7 +168,7 @@ async function load() {
 
 // ---------- render ----------
 function renderTabs() {
-  $('#tabs').innerHTML = Object.entries(MODES).map(([k, m]) => `<button data-mode="${k}" class="${k === S.mode ? 'on' : ''}">${m.label}${m.hot ? '<span class="hot">NEW</span>' : ''}</button>`).join('');
+  $('#tabs').innerHTML = Object.entries(MODES).filter(([, m]) => !m.hidden).map(([k, m]) => `<button data-mode="${k}" class="${k === S.mode ? 'on' : ''}">${m.label}${m.hot ? '<span class="hot">NEW</span>' : ''}</button>`).join('');
 }
 
 const HERO = {
@@ -721,7 +721,7 @@ function jobModal(id) {
         ${first?.type === 'image' && j.tool !== 'avatarGen' ? '<button class="btn" id="anim">🎬 Animate</button>' : ''}
         ${j.tool === 'avatarGen' && !j.input?.preset && j.status === 'done' ? '<button class="btn pri" id="saveav">＋ Save as friend</button>' : ''}
         ${media.some((o) => o.type === 'video') && j.status === 'done' ? '<button class="btn" id="post">📤 Post / schedule</button>' : ''}
-        ${j.tool === 'story' && j.status === 'done' && j.board ? '<button class="btn" id="board">🧩 Edit storyboard</button>' : ''}
+        
         <button class="btn" id="reuse">↺ Reuse settings</button>
         <button class="btn danger" id="del">🗑 Delete</button>
       </div>
@@ -758,7 +758,7 @@ function jobModal(id) {
   $('#anim', m) && ($('#anim', m).onclick = () => { setMode('video'); F().startImage = cur.url; closeModal(); renderComposer(true); });
   $('#reuse', m).onclick = () => {
     const mode = TOOL_MODE[j.tool];
-    if (!MODES[mode]?.tool) { toast('Nothing to reuse for this one'); return; }
+    if (!MODES[mode]?.tool || MODES[mode].hidden) { toast('Nothing to reuse for this one'); return; }
     setMode(mode);
     const i = { ...j.input };
     if (mode === 'ad') i.prompt = i.notes || '';
@@ -847,6 +847,7 @@ function poll() {
 
 // ---------- events ----------
 function setMode(m) {
+  if (MODES[m]?.hidden) m = 'home';
   S.mode = m;
 }
 function renderAll() {

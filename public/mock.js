@@ -535,7 +535,7 @@
         { title: `${who} reviews it`, mode: 'ad', why: 'A real face talking to camera is the highest-converting format for a first launch.', prompt: points.slice(0, 2).join(', '), settings: { format: 'talking', angle: niche === 'skincare & beauty' ? 'beforeafter' : 'review' } },
         { title: 'Premium orbit shot', mode: 'video', why: `The ${pi ? pi.name : 'product'} packaging pops in a slow orbit with soft light.`, prompt: `${who} holds ${name} up to the camera, soft window light, product label clearly visible`, settings: { camera: 'orbit', style } },
         { title: 'Shopee listing set', mode: 'image', why: 'Clean packshots lift listing click-through.', prompt: `${name} on a ${pi && pi.light > 0.6 ? 'soft pastel' : 'dark glossy'} background, soft shadows, premium e-commerce packshot`, settings: { style: 'studio', aspect: '1:1' } },
-        { title: '3 reasons story', mode: 'story', why: 'Infotainment keeps viewers watching and builds trust before the link.', prompt: `3 reasons people are switching to ${name}${prompt ? ` (${prompt.slice(0, 40)})` : ''}`, settings: { scenes: 4, style } },
+        { title: 'Problem → fix ad', mode: 'ad', why: 'Showing the problem first keeps viewers watching and builds trust before the link.', prompt: `3 reasons people are switching to ${name}${prompt ? ` (${prompt.slice(0, 40)})` : ''}`, settings: { format: 'showcase', angle: 'problem' } },
       ],
     };
   }

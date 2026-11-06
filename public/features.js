@@ -10,7 +10,6 @@ const ACTIONS = {
   avatars: () => avatarLibraryModal(),
   createAvatar: () => avatarBuilderModal(),
   clone: () => voiceCloneModal(),
-  storyboard: () => { setMode('story'); renderAll(); storyboardModal({ input: F() }); },
   brainstorm: () => { setMode('ad'); renderAll(); runBrainstorm(); },
   batch: () => { setMode('ad'); S.forms.ad = { ...(S.forms.ad || DEFAULTS.ad()), variants: 5 }; renderAll(); toast('5 variations set. Add a product and hit Generate'); },
   plans: () => accountModal(),
@@ -158,7 +157,7 @@ function renderHome() {
         <h2>Start from a template</h2><p class="sub">Fills the prompt, camera and style for you.</p>
         <div class="zz-tpls">${HOME_TPLS.map((t, i) => `<button class="zz-opt" data-tpl="${i}"><b>${t[0]} ${t[1]}</b></button>`).join('')}</div>
       </div>
-      <div class="bx zz-strip"><div class="zz-top"><h2>Storyboard</h2><a href="#" class="link" data-go="story">Plan a full story →</a></div><div class="zz-row2" id="hs-strip">${stripHTML()}</div></div>
+      <div class="bx zz-strip"><div class="zz-top"><h2>Storyboard</h2></div><div class="zz-row2" id="hs-strip">${stripHTML()}</div></div>
       <div class="bx zz-style"><h2>Visual style</h2><div class="zz-grid3">${HOME_STYLES.map((x) => `<button class="zz-opt ${x[0] === SHOT.style ? 'on' : ''}" data-st="${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></button>`).join('')}</div></div>
     </section>`;
   const root = $('#presets');

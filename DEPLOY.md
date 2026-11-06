@@ -55,8 +55,8 @@ Credits = AI cost in US cents × `CREDIT_MARKUP` (1.9), so 1 credit ≈ US$0.005
 
 | Plan | Price | Credits | Unlocks | Gross margin if every credit is used |
 |---|---|---|---|---|
-| Basic | RM39/mo | 600 | Motion ads + faceless Motion stories · up to 3 variations | ~59% |
-| Starter | RM59/mo | 1,000 | + Lite and Fast AI video, Video and Talk tools | ~60% |
+| Basic | RM39/mo | 600 | Motion ads · up to 3 variations | ~59% |
+| Starter | RM59/mo | 1,000 | + Lite and Fast AI video, camera video shots | ~60% |
 | Creator | RM129/mo | 2,500 | + Studio lip-sync, Kling, Seedance · 5 variations · voice cloning · auto-post | ~55% |
 | Pro | RM299/mo | 6,500 | + Premium (OmniHuman), Kling Pro | ~48% |
 

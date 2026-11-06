@@ -841,6 +841,7 @@ function poll() {
       } catch { /* server busy */ }
     }
     renderFeed();
+    if (S.mode === 'home' && typeof homeTick === 'function') homeTick();
   }, 2000);
 }
 

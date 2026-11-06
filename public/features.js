@@ -62,80 +62,121 @@ const portraitCache = new Map();
 const portrait = (look, key) => { const k = key || JSON.stringify(look); if (!portraitCache.has(k)) portraitCache.set(k, drawPortrait(look)); return portraitCache.get(k); };
 
 // ---------- home (bento) ----------
-// ---------- home: one prompt, four kinds of content (RekaLab-simple, Kravitas bento) ----------
-const HOME_TYPES = {
-  video: { ic: '🎬', t: '60s video', d: 'Faceless video with voice-over and captions', ph: 'What is the video about? e.g. Misteri Piramid Giza, 5 tips jimat duit, resepi kek pandan', ex: ['Misteri Piramid Giza', '5 tips jimat duit gaji RM2k', 'Resepi kek pandan lembut'], btn: 'Generate video' },
-  ad: { ic: '🛍', t: 'Product ad', d: 'TikTok Shop / Shopee ad from your product photo', ph: 'What are you selling? e.g. Serum vitamin C, RM29, flash sale hari ni', ex: ['Serum vitamin C, RM29, flash sale', 'Tudung bawal satin, free shipping', 'Air fryer 6L, harga jimat'], btn: 'Next: add product' },
-  image: { ic: '🖼', t: 'Image', d: 'Product shots and posters in seconds', ph: 'Describe the image. e.g. Iced kopi on a marble table, morning light', ex: ['Iced kopi on a marble table', 'Raya hamper flatlay, gold and green', 'Skincare bottle on wet stone'], btn: 'Generate images' },
-  ideas: { ic: '✍️', t: 'Ideas & captions', d: 'Hooks, captions and content ideas', ph: 'What do you sell or post about? e.g. kedai kek online di Shah Alam', ex: ['Kedai kek online di Shah Alam', 'Affiliate produk kecantikan', 'Kopitiam baru buka'], btn: 'Get ideas' },
-};
-const HOME = { type: 'video', prompt: '', lang: 'ms' };
-function homeInput() {
-  const p = HOME.prompt.trim();
-  if (HOME.type === 'video') return { tool: 'story', input: { ...DEFAULTS.story(), prompt: p, scenes: 8, tier: 'motion', lang: HOME.lang, voice: HOME.lang === 'ms' ? 'mm:Friendly_Person' : 'el:Aria' } };
-  if (HOME.type === 'image') return { tool: 'image', input: { ...DEFAULTS.image(), prompt: p } };
-  return null;
+// ---------- home: studio bento (direct the shot · templates · character · storyboard · style) ----------
+const HOME_STYLES = [['photo', 'Realistic', 'True to ref'], ['cinematic', 'Cinematic', 'Live-action'], ['3d', '3D animated', 'Family film'], ['anime', 'Anime', 'Bold colour'], ['clay', 'Claymation', 'Handmade'], ['storybook', 'Storybook', 'Watercolour']];
+const HOME_TPLS = [
+  ['🌙', 'Raya greeting', 'greets family at a warmly lit kampung house at dusk, pelita lights glowing', 'dolly-in', 'cinematic'],
+  ['☕', 'Café promo', 'sips an iced kopi in a sunny café, condensation on the glass', 'orbit', 'photo'],
+  ['📦', 'Product reveal', 'unveils a new product on a clean white pedestal, soft studio light', 'crash', 'cinematic'],
+  ['🍜', 'Street food ad', 'serves sizzling char kuey teow at a busy night market', 'pan', 'cinematic'],
+  ['🦸', 'Hero walk', 'walks through a misty mountain valley at golden hour', 'crane', '3d'],
+  ['🧳', 'Travel vlog', 'explores the colourful streets of Melaka with a backpack', 'pan', 'anime'],
+];
+const HOME_ASPECT = { '9:16': 'TikTok 9:16', '16:9': 'YouTube 16:9', '1:1': 'Square 1:1' };
+const SHOT = { prompt: 'walks through a misty mountain valley at golden hour', camera: 'dolly-in', model: 'h3-turbo', style: 'photo', aspect: '9:16', friendId: undefined, job: null };
+const hueOf = (t) => { let h = 0; for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+const STYLE_FX = { photo: '', cinematic: 'contrast(1.15) saturate(.9)', '3d': 'saturate(1.5) brightness(1.1)', anime: 'saturate(1.9) contrast(1.1) hue-rotate(-10deg)', clay: 'sepia(.35) saturate(1.2) blur(.4px)', storybook: 'saturate(.8) brightness(1.15) blur(.8px)' };
+function shotFriend() {
+  if (SHOT.friendId === undefined) SHOT.friendId = S.friends[0]?.id || null;
+  return S.friends.find((f) => f.id === SHOT.friendId) || null;
 }
-async function homeEstimate() {
-  const el = $('#hm-est'); if (!el) return;
-  const x = homeInput();
-  if (!x) { el.textContent = HOME.type === 'ideas' ? '✦ 2' : ''; return; }
-  try { el.textContent = `✦ ${(await api('/api/estimate', x)).credits}`; } catch { el.textContent = ''; }
+function stageHTML(label) {
+  const f = shotFriend();
+  const who = f?.photos?.[0] ? `background-image:url('${f.photos[0]}')` : '';
+  return `<div class="sc cam-${SHOT.camera}" style="--h:${hueOf(SHOT.prompt)};filter:${STYLE_FX[SHOT.style] || 'none'}"><div class="sun"></div><div class="mt"></div><div class="who ${who ? 'ph' : ''}" style="${who}">${who ? '' : esc((f?.name || 'K')[0].toUpperCase())}</div></div><div class="vig"></div><div class="hud">${esc(label)}</div>`;
 }
-async function homeGo(btn) {
-  const p = HOME.prompt.trim();
-  if (!p) { toast('Type what you want first', true); return $('#hm-p')?.focus(); }
-  if (HOME.type === 'ad') {
-    setMode('ad'); S.forms.ad = { ...(S.forms.ad || DEFAULTS.ad()), prompt: p, lang: HOME.lang };
-    renderAll(); window.scrollTo({ top: 0 });
-    if (!S.products.some((x) => !isSample(x))) productModal(); else toast('Pick your product and hit Generate');
-    return;
-  }
-  if (HOME.type === 'ideas') { setMode('ad'); S.forms.ad = { ...(S.forms.ad || DEFAULTS.ad()), prompt: p, lang: HOME.lang }; renderAll(); return runBrainstorm(); }
+function homeShots() { return S.jobs.filter((j) => ['shot', 'story', 'ugc', 'avatar'].includes(j.tool)); }
+function stripHTML() {
+  const list = homeShots().slice(0, 12);
+  if (!list.length) return '<p class="hs-empty">Your shots appear here, with the same character in each one.</p>';
+  return list.map((j) => {
+    const t = thumbOf(j);
+    const step = j.steps?.find((x) => x.status === 'running');
+    return `<button class="hs-card" data-job="${j.id}"><div class="hs-th">${j.status === 'running' ? `<div class="hs-run"><i></i><small>${esc(step?.label || 'Starting')}…</small></div>` : t ? (t.type === 'video' ? `<video src="${t.url}#t=0.3" muted preload="metadata"></video>` : `<img src="${t.url}" alt="">`) : `<div class="hs-run"><small>${j.status === 'error' ? 'Failed' : 'Script'}</small></div>`}</div><p>${esc(j.title)}</p></button>`;
+  }).join('');
+}
+async function shotEstimate() {
+  const el = $('#hs-est'); if (!el) return;
+  try { el.textContent = `✦ ${(await api('/api/estimate', { tool: 'shot', input: shotInput() })).credits}`; } catch { el.textContent = ''; }
+}
+const shotInput = () => ({ ...DEFAULTS.video(), prompt: SHOT.prompt.trim(), camera: SHOT.camera, model: SHOT.model, style: SHOT.style, aspect: SHOT.aspect, friendId: shotFriend()?.id || null });
+async function shotGo(btn) {
+  if (!SHOT.prompt.trim()) { toast('Describe the scene first', true); return $('#hs-p')?.focus(); }
   btn.disabled = true;
   try {
-    const job = await api('/api/jobs', homeInput());
-    S.jobs.unshift(job); renderFeed(); poll(); load().then(() => renderFeed());
-    $('#feed').scrollIntoView({ behavior: 'smooth' });
-    toast(HOME.type === 'video' ? 'Making your video… about 1–3 minutes' : 'Making your images…');
+    const job = await api('/api/jobs', { tool: 'shot', input: shotInput() });
+    S.jobs.unshift(job); SHOT.job = job.id; poll(); renderFeed(); homeTick();
+    toast('Rendering your shot…');
   } catch (e) { toast(e.message, true); if (e.code === 'credits' || e.code === 'plan') accountModal(); }
   btn.disabled = false;
 }
+// called by the job poller while Home is open
+function homeTick() {
+  const strip = $('#hs-strip'); if (!strip) return;
+  strip.innerHTML = stripHTML();
+  const shots = S.jobs.filter((j) => j.tool === 'shot');
+  $('#hs-n') && ($('#hs-n').textContent = shots.length);
+  $('#hs-c') && ($('#hs-c').textContent = shots.reduce((a, j) => a + (j.cost || 0), 0));
+  const j = SHOT.job && S.jobs.find((x) => x.id === SHOT.job);
+  const stage = $('#hs-stage'); if (!j || !stage) return;
+  if (j.status === 'running') {
+    const done = j.steps.filter((x) => x.status === 'done').length;
+    stage.innerHTML = `<div class="sc" style="--h:${hueOf(SHOT.prompt)};filter:blur(14px) brightness(.6)"><div class="sun"></div><div class="mt"></div></div><div class="hud">${esc(j.steps.find((x) => x.status === 'running')?.label || 'Starting')}…</div><div class="prog"><i style="width:${Math.round(((done + 0.5) / (j.steps.length + 1)) * 100)}%"></i></div>`;
+  } else if (j.status === 'done') {
+    const t = thumbOf(j);
+    stage.innerHTML = t?.type === 'video' ? `<video src="${t.url}" autoplay loop muted playsinline controls></video>` : t ? `<img src="${t.url}" alt="">` : stageHTML('Done');
+    SHOT.job = null;
+  } else { stage.innerHTML = stageHTML('Failed: ' + (j.error || '')); SHOT.job = null; }
+}
 function renderHome() {
-  const a = S.app;
-  const plan = (CFG.plans || []).find((p) => p.id === a.plan);
-  const cheapest = [...(CFG.plans || [])].sort((x, y) => x.price - y.price)[0];
-  const T = HOME_TYPES[HOME.type];
+  const c = S.app.catalog;
+  const models = c.videoModels || {};
+  const mp = c.modelPlan || {};
+  const shots = S.jobs.filter((j) => j.tool === 'shot');
+  const friends = S.friends;
+  shotFriend();
   $('#presets').innerHTML = `
-    <section class="bento rk">
-      <div class="bx b-hero">
-        <span class="eyebrow">One prompt · ready in minutes</span>
-        <h1>What do you want<br>to make today?</h1>
-        <div class="hm-box">
-          <textarea id="hm-p" rows="3" maxlength="2000" placeholder="${esc(T.ph)}">${esc(HOME.prompt)}</textarea>
-          <div class="hm-row">
-            <div class="hm-lang">${[['ms', 'BM'], ['en', 'EN']].map(([k, l]) => `<button data-hl="${k}" class="${HOME.lang === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-            <button class="cta" id="hm-go">${T.btn} <span id="hm-est"></span></button>
-          </div>
+    <section class="bento zz">
+      <div class="bx zz-shot">
+        <div class="zz-top"><h2>Direct the shot</h2><span><b id="hs-n">${shots.length}</b> shots · <b id="hs-c">${shots.reduce((a, j) => a + (j.cost || 0), 0)}</b> credits</span></div>
+        <div class="zz-stagewrap"><div class="zz-stage" id="hs-stage" style="aspect-ratio:${SHOT.aspect.replace(':', '/')}">${stageHTML('PREVIEW · ' + (HOME_STYLES.find((x) => x[0] === SHOT.style)?.[1] || ''))}</div></div>
+        <label class="l" for="hs-p">Scene prompt</label>
+        <textarea class="in" id="hs-p" rows="2" maxlength="1500">${esc(SHOT.prompt)}</textarea>
+        <div class="zz-row">
+          <div><label class="l" for="hs-cam">Camera</label><select class="in" id="hs-cam">${Object.entries(CAM).map(([k, l]) => `<option value="${k}" ${k === SHOT.camera ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          <div><label class="l" for="hs-md">Model</label><select class="in" id="hs-md">${Object.entries(models).map(([k, m]) => { const lock = mp[k] && !canUse(mp[k]); return `<option value="${k}" ${k === SHOT.model ? 'selected' : ''}>${esc(m.label)} · ${esc(m.tag)}${lock ? ` · 🔒 ${PLAN_LABEL[mp[k]]}` : ''}</option>`; }).join('')}</select></div>
+          <div><label class="l" for="hs-ar">Format</label><select class="in" id="hs-ar">${Object.entries(HOME_ASPECT).map(([k, l]) => `<option value="${k}" ${k === SHOT.aspect ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         </div>
-        <div class="hm-ex"><small>Try:</small>${T.ex.map((x) => `<button data-hx="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+        <button class="go zz-go" id="hs-go">Generate shot <span class="c" id="hs-est"></span></button>
       </div>
-      ${Object.entries(HOME_TYPES).map(([k, x]) => `<button class="bx b-type ${k === HOME.type ? 'on' : ''}" data-ht="${k}"><span class="ic">${x.ic}</span><h3>${x.t}</h3><p>${x.d}</p></button>`).join('')}
-      <a class="bx b-plan" href="#" data-act="plans"><span class="eyebrow">${plan ? `${esc(plan.name)} plan` : 'Credits'}</span><h3>✦ ${a.credits.toLocaleString()}</h3>
-        <p>${plan ? `${plan.credits.toLocaleString()} every month` : cheapest ? `Plans from ${RM(cheapest.price)}/month` : 'Top up anytime'}</p></a>
-      <div class="bx b-more"><h3>More tools</h3><div class="mt">
-        <button data-go="video">🎬 Camera video</button><button data-go="talk">🗣 Talking avatar</button><button data-go="story">🧩 Storyboard</button>
-        <button data-go="voice">🎙 Voice-over</button><button data-act="avatars">👤 AI avatars</button><button data-go="schedule">📤 Auto-post</button></div></div>
+      <div class="bx zz-chars">
+        <h2>Character</h2><p class="sub">Your photo is the reference. Kravitas keeps this face.</p>
+        <div class="zz-chl">${friends.length ? friends.map((f) => `<button class="zz-ch ${f.id === SHOT.friendId ? 'on' : ''}" data-fr="${f.id}"><span class="av" style="${f.photos?.[0] ? `background-image:url('${f.photos[0]}')` : ''}">${f.photos?.[0] ? '' : esc(f.name[0])}</span><span><b>${esc(f.name)}</b><small>${f.photos?.length ? 'Photo reference' : 'No photo yet'}</small></span></button>`).join('') : '<p class="hs-empty">No characters yet.</p>'}</div>
+        <div class="zz-two"><button class="btn pri" data-new="friend">＋ Add character</button><button class="btn" data-act="avatars">AI avatars</button></div>
+      </div>
+      <div class="bx zz-tpl">
+        <h2>Start from a template</h2><p class="sub">Fills the prompt, camera and style for you.</p>
+        <div class="zz-tpls">${HOME_TPLS.map((t, i) => `<button class="zz-opt" data-tpl="${i}"><b>${t[0]} ${t[1]}</b></button>`).join('')}</div>
+      </div>
+      <div class="bx zz-strip"><div class="zz-top"><h2>Storyboard</h2><a href="#" class="link" data-go="story">Plan a full story →</a></div><div class="zz-row2" id="hs-strip">${stripHTML()}</div></div>
+      <div class="bx zz-style"><h2>Visual style</h2><div class="zz-grid3">${HOME_STYLES.map((x) => `<button class="zz-opt ${x[0] === SHOT.style ? 'on' : ''}" data-st="${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></button>`).join('')}</div></div>
     </section>`;
-  const ta = $('#hm-p');
-  ta.onkeydown = (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) homeGo($('#hm-go')); };
-  ta.oninput = () => { HOME.prompt = ta.value; clearTimeout(homeEstimate.t); homeEstimate.t = setTimeout(homeEstimate, 400); };
-  const sec = $('#presets');
-  sec.querySelectorAll('[data-ht]').forEach((b) => (b.onclick = () => { HOME.type = b.dataset.ht; renderHome(); $('#hm-p').focus(); }));
-  sec.querySelectorAll('[data-hx]').forEach((b) => (b.onclick = () => { HOME.prompt = b.dataset.hx; ta.value = HOME.prompt; homeEstimate(); }));
-  sec.querySelectorAll('[data-hl]').forEach((b) => (b.onclick = () => { HOME.lang = b.dataset.hl; sec.querySelectorAll('[data-hl]').forEach((x) => x.classList.toggle('on', x === b)); homeEstimate(); }));
-  $('#hm-go').onclick = (e) => homeGo(e.currentTarget);
-  homeEstimate();
+  const root = $('#presets');
+  const preview = () => { if (!SHOT.job) $('#hs-stage').innerHTML = stageHTML('PREVIEW · ' + (HOME_STYLES.find((x) => x[0] === SHOT.style)?.[1] || '')); shotEstimate(); };
+  $('#hs-p').oninput = (e) => { SHOT.prompt = e.target.value; clearTimeout(preview.t); preview.t = setTimeout(preview, 300); };
+  $('#hs-cam').onchange = (e) => { SHOT.camera = e.target.value; preview(); };
+  $('#hs-md').onchange = (e) => {
+    const v = e.target.value, need = mp[v];
+    if (need && !canUse(need)) { e.target.value = SHOT.model; toast(`${models[v]?.label || 'That model'} is on the ${PLAN_LABEL[need]} plan`); return accountModal(); }
+    SHOT.model = v; shotEstimate();
+  };
+  $('#hs-ar').onchange = (e) => { SHOT.aspect = e.target.value; $('#hs-stage').style.aspectRatio = SHOT.aspect.replace(':', '/'); preview(); };
+  root.querySelectorAll('[data-fr]').forEach((b) => (b.onclick = () => { SHOT.friendId = b.dataset.fr; root.querySelectorAll('[data-fr]').forEach((x) => x.classList.toggle('on', x === b)); preview(); }));
+  root.querySelectorAll('[data-tpl]').forEach((b) => (b.onclick = () => { const t = HOME_TPLS[+b.dataset.tpl]; Object.assign(SHOT, { prompt: t[2], camera: t[3], style: t[4] }); renderHome(); }));
+  root.querySelectorAll('[data-st]').forEach((b) => (b.onclick = () => { SHOT.style = b.dataset.st; root.querySelectorAll('[data-st]').forEach((x) => x.classList.toggle('on', x === b)); preview(); }));
+  $('#hs-go').onclick = (e) => shotGo(e.currentTarget);
+  if (SHOT.job) homeTick();
+  shotEstimate();
 }
 
 // ---------- avatars ----------

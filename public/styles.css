@@ -519,3 +519,9 @@ button.bx{font:inherit;text-align:left;cursor:pointer}
 .hs-empty{color:var(--muted);font-size:13px;margin:6px 0 0}
 @media (max-width:1000px){.bento.zz{grid-template-columns:1fr 1fr;grid-template-areas:"shot shot" "chars tpl" "strip strip" "style style"}}
 @media (max-width:620px){.bento.zz{grid-template-columns:1fr;grid-template-areas:"shot" "tpl" "chars" "style" "strip"}.zz-row{grid-template-columns:1fr 1fr}.zz-row>div:last-child{grid-column:span 2}.zz-stage[style*="9/16"]{height:360px}}
+.zz-styles{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.zz-sty{display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:none;color:var(--muted);padding:10px 12px;font-size:12.5px;font-weight:600;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.zz-sty i{flex:none;width:18px;height:18px;background:linear-gradient(160deg,#6a8cff,#2a1a4a 70%)}
+.zz-sty:hover{border-color:#666;color:var(--fg)}
+.zz-sty.on{border-color:#fff;color:var(--fg);box-shadow:inset 0 0 0 1px #fff}
+

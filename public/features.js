@@ -158,7 +158,7 @@ function renderHome() {
         <div class="zz-tpls">${HOME_TPLS.map((t, i) => `<button class="zz-opt" data-tpl="${i}"><b>${t[0]} ${t[1]}</b></button>`).join('')}</div>
       </div>
       <div class="bx zz-strip"><div class="zz-top"><h2>Storyboard</h2></div><div class="zz-row2" id="hs-strip">${stripHTML()}</div></div>
-      <div class="bx zz-style"><h2>Visual style</h2><div class="zz-grid3">${HOME_STYLES.map((x) => `<button class="zz-opt ${x[0] === SHOT.style ? 'on' : ''}" data-st="${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></button>`).join('')}</div></div>
+      <div class="bx zz-style"><h2>Visual style</h2><div class="zz-styles">${HOME_STYLES.map((x) => `<button class="zz-sty ${x[0] === SHOT.style ? 'on' : ''}" data-st="${x[0]}" title="${esc(x[2])}">${x[1]}</button>`).join('')}</div></div>
     </section>`;
   const root = $('#presets');
   const preview = () => { if (!SHOT.job) $('#hs-stage').innerHTML = stageHTML('PREVIEW · ' + (HOME_STYLES.find((x) => x[0] === SHOT.style)?.[1] || '')); shotEstimate(); };

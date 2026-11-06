@@ -21,17 +21,17 @@
   for (const m of Object.values(VIDEO_MODELS)) m.perSec = Math.ceil(m.cps * MARKUP * 10) / 10;
   const TIERS = {
     motion: { label: 'Motion', tag: 'Animated still + voice, no AI video', image: 'lite', voice: 'turbo', maxSec: 30, talk: 0, show: 0, plan: 'free' },
-    lite: { label: 'Lite', tag: 'Cheap AI video, up to 8s', image: 'lite', voice: 'turbo', maxSec: 8, talk: 1.5, show: 1.5, plan: 'free' },
-    fast: { label: 'Fast', tag: 'Sharper image, up to 10s', image: 'full', voice: 'hd', maxSec: 10, talk: 1.5, show: 1.5, plan: 'free' },
+    lite: { label: 'Lite', tag: 'Cheap AI video, up to 8s', image: 'lite', voice: 'turbo', maxSec: 8, talk: 1.5, show: 1.5, plan: 'starter' },
+    fast: { label: 'Fast', tag: 'Sharper image, up to 10s', image: 'full', voice: 'hd', maxSec: 10, talk: 1.5, show: 1.5, plan: 'starter' },
     studio: { label: 'Studio', tag: 'Real lip-sync (VEED) · Kling', image: 'full', voice: 'hd', maxSec: 30, talk: 8, show: 8, plan: 'creator' },
     premium: { label: 'Premium', tag: 'OmniHuman 720p · Kling Pro', image: 'full', voice: 'hd', maxSec: 30, talk: 16, show: 14, plan: 'pro' },
   };
   const tierOf = (k) => TIERS[k] || TIERS.lite;
-  const RANK = { free: 0, starter: 1, creator: 2, pro: 3 };
-  const MODEL_PLAN = { 'h3-turbo': 'free', 'seedance-fast': 'creator', 'kling-std': 'creator', 'kling-pro': 'pro' };
-  const MAX_VARIANTS = { free: 3, starter: 3, creator: 5, pro: 5 };
-  const PLAN_NAME = { starter: 'Starter', creator: 'Creator', pro: 'Pro' };
-  const PLAN_CREDITS = { starter: 1000, creator: 2500, pro: 6500 };
+  const RANK = { free: 0, basic: 1, starter: 2, creator: 3, pro: 4 };
+  const MODEL_PLAN = { 'h3-turbo': 'starter', 'seedance-fast': 'creator', 'kling-std': 'creator', 'kling-pro': 'pro' };
+  const MAX_VARIANTS = { free: 3, basic: 3, starter: 3, creator: 5, pro: 5 };
+  const PLAN_NAME = { basic: 'Basic', starter: 'Starter', creator: 'Creator', pro: 'Pro' };
+  const PLAN_CREDITS = { basic: 600, starter: 1000, creator: 2500, pro: 6500 };
   const PRICE = { image: credits(8), imageLite: credits(3), imageSchnell: credits(0.5), llm: credits(0.5), removeBg: credits(1), voiceClone: credits(100) };
   const VOICES = {
     el: ['Aria', 'Sarah', 'Laura', 'Charlotte', 'Alice', 'Matilda', 'Jessica', 'Lily', 'Roger', 'Charlie', 'George', 'Callum', 'River', 'Liam', 'Will', 'Eric', 'Chris', 'Brian', 'Daniel', 'Bill'],
@@ -325,7 +325,7 @@
     const pr = st.products.find((p) => p.id === input.productId) || null;
     const plan = st.plan || 'free', T = tierOf(input.tier);
     const lock = (need, what) => { if ((RANK[plan] ?? 0) < (RANK[need] ?? 0)) throw err(`${what} is on the ${PLAN_NAME[need]} plan. Upgrade to use it.`, 'plan'); };
-    if (['ugc', 'avatar', 'story'].includes(tool) && input.tier) lock(T.plan, `${T.label} quality`);
+    if (['ugc', 'avatar', 'story'].includes(tool)) { const TT = TIERS[input.tier] || TIERS[tool === 'story' ? 'motion' : 'lite']; lock(TT.plan, `${TT.label} quality`); }
     if (input.model && !(tool === 'story' && (input.tier || 'motion') === 'motion')) lock(MODEL_PLAN[input.model] || 'free', VIDEO_MODELS[input.model]?.label || 'That model');
     if (tool === 'ugc' && (input.variants || 1) > MAX_VARIANTS[plan]) lock('creator', `${input.variants} variations`);
     const prevDraft = input.fromDraft ? st.jobs.find((x) => x.id === input.fromDraft) : null;

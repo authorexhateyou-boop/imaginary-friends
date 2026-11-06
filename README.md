@@ -14,7 +14,7 @@ accurate packaging. One click turns a product into a ready-to-post TikTok Shop /
 - **AI avatars**: 8 ready-made Malaysian creator personas, or design your own (4 options to pick from). Saved as friends with a consistent face.
 - **Brainstorm**: vision AI studies your photos and prompt, then chat to refine hooks and ideas.
 - **Schedule / auto-post**: connect TikTok, Instagram, Facebook, YouTube and Threads; post now or schedule any creation, with the AI-generated label.
-- **Plans**: monthly subscriptions (Starter RM59 → 1,000 · Creator RM129 → 2,500 · Pro RM299 → 6,500 credits, higher plans unlock better engines) plus one-off top-ups via Stripe (card, FPX, GrabPay).
+- **Plans**: monthly subscriptions (Basic RM39 → 600 · Starter RM59 → 1,000 · Creator RM129 → 2,500 · Pro RM299 → 6,500 credits, higher plans unlock better engines) plus one-off top-ups via Stripe (card, FPX, GrabPay).
 
 ## Two ways to run
 

@@ -55,11 +55,12 @@ Credits = AI cost in US cents × `CREDIT_MARKUP` (1.9), so 1 credit ≈ US$0.005
 
 | Plan | Price | Credits | Unlocks | Gross margin if every credit is used |
 |---|---|---|---|---|
-| Starter | RM59/mo | 1,000 | Motion, Lite, Fast · up to 3 variations | ~60% |
+| Basic | RM39/mo | 600 | Motion ads + faceless Motion stories · up to 3 variations | ~59% |
+| Starter | RM59/mo | 1,000 | + Lite and Fast AI video, Video and Talk tools | ~60% |
 | Creator | RM129/mo | 2,500 | + Studio lip-sync, Kling, Seedance · 5 variations · voice cloning · auto-post | ~55% |
 | Pro | RM299/mo | 6,500 | + Premium (OmniHuman), Kling Pro | ~48% |
 
-What an 8–10s talking ad costs: **Motion ≈ 9 credits** (animated still + Turbo voice, no AI video), **Lite ≈ 32** (H3 Turbo, Seedream/FLUX keyframe, Turbo voice), Fast ≈ 49, Studio ≈ 170, Premium ≈ 320. So Starter makes ~110 Motion or ~30 Lite ads a month. Ads default to **Approve first**: scripts and the keyframe are made for a few credits, and the expensive voice + video render only runs after the user approves (and can edit) the script. Guests without a plan get the free tiers (Motion, Lite, Fast). Top-up packs (RM25 → 300, RM59 → 800, RM129 → 2,000) cost more per credit than plans on purpose. Change them with `PLANS` and `PACKS`; per-model costs and tiers are in `lib/models.js`.
+What an 8–10s talking ad costs: **Motion ≈ 9 credits** (animated still + Turbo voice, no AI video), **Lite ≈ 32** (H3 Turbo, Seedream/FLUX keyframe, Turbo voice), Fast ≈ 49, Studio ≈ 170, Premium ≈ 320. So Basic makes ~66 Motion ads and Starter ~110 Motion or ~30 Lite ads a month. Ads default to **Approve first**: scripts and the keyframe are made for a few credits, and the expensive voice + video render only runs after the user approves (and can edit) the script. Guests without a plan can use Motion only (like Basic), which keeps free credits cheap to give away. Top-up packs (RM25 → 300, RM59 → 800, RM129 → 2,000) cost more per credit than plans on purpose. Change them with `PLANS` and `PACKS`; per-model costs and tiers are in `lib/models.js`.
 
 ## Admin
 

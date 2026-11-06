@@ -65,36 +65,36 @@ const portrait = (look, key) => { const k = key || JSON.stringify(look); if (!po
 function renderHome() {
   const a = S.app;
   const presets = a.catalog.avatars || [];
-  const nextPost = (S.posts || []).filter((p) => p.status === 'scheduled' && p.scheduledAt > Date.now()).sort((x, y) => x.scheduledAt - y.scheduledAt)[0];
   const plan = (CFG.plans || []).find((p) => p.id === a.plan);
-  const creator = (CFG.plans || []).find((p) => p.id === 'creator') || { credits: 1600, price: 79 };
+  const cheapest = [...(CFG.plans || [])].sort((x, y) => x.price - y.price)[0];
+  const mine = (x) => !isSample(x);
+  // the whole beginner journey lives in the hero: 3 steps, one button for whatever is next
+  const steps = [
+    { done: S.products.some(mine), t: 'Add your product', d: 'One clear photo + price', act: 'data-new="product"' },
+    { done: S.friends.some(mine), t: 'Choose a face', d: 'Your photo or an AI avatar', act: 'data-act="avatars"' },
+    { done: S.jobs.some((j) => j.tool === 'ugc' && j.status === 'done' && j.stage !== 'review'), t: 'Make your ad', d: 'Check the script, then approve', act: 'data-go="ad"' },
+  ];
+  const next = steps.findIndex((x) => !x.done);
+  const cta = next === -1 ? { t: 'Make another ad', act: 'data-go="ad"' } : { t: ['Add your product', 'Choose a face', 'Make your ad'][next], act: steps[next].act };
   $('#presets').innerHTML = `
-    <section class="bento">
-      <a class="bx b-hero" href="#" data-go="ad">
-        <span class="eyebrow">For affiliates · TikTok Shop & Shopee</span>
-        <h1>Your product.<br>Your face.<br>Ad in one click.</h1>
-        <p>Hook, script, Malay voice-over, lip-synced creator video and captions. Make 5 variations at once and test which one sells.</p>
-        <span class="cta">Make an ad →</span>
-        <span class="stat">Motion ad ≈ 9 credits · Lite talking ad ≈ 32</span>
-      </a>
-      <a class="bx" href="#" data-act="brainstorm"><span class="ic">✨</span><h3>Brainstorm</h3><p>Kravitas studies your photos and suggests hooks, angles and ready-made ideas.</p></a>
-      <a class="bx b-av" href="#" data-act="avatars"><div class="faces">${presets.slice(0, 4).map((p) => `<img src="${portrait(p.look, p.id)}" alt="">`).join('')}</div><h3>AI avatars</h3><p>Pick a ready-made creator or design your own.</p></a>
-      <a class="bx b-wide" href="#" data-act="storyboard"><span class="ic">🧩</span><h3>Storyboard</h3><p>Plan scene by scene, change one line, and re-render only that scene. You don't pay for the rest again.</p>
-        <div class="frames">${[1, 2, 3, 4].map((n) => `<span><b>${n}</b></span>`).join('')}</div></a>
-      <a class="bx" href="#" data-go="voice"><span class="ic">🎙️</span><h3>Voice studio</h3><p>ElevenLabs voices, natural BM voices, clone your own voice, music & SFX.</p><div class="wave sm">${'<i></i>'.repeat(18)}</div></a>
-      <a class="bx" href="#" data-go="schedule"><span class="ic">📤</span><h3>Auto-post</h3><p>${nextPost ? `Next: ${new Date(nextPost.scheduledAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })} · ${nextPost.platforms.map((p) => PLATFORM_META[p]?.name).join(', ')}` : 'Schedule to TikTok, Instagram, Facebook, YouTube and Threads.'}</p>
-        <div class="plats">${Object.values(PLATFORM_META).map((p) => `<span>${p.icon}</span>`).join('')}</div></a>
-      <a class="bx" href="#" data-act="batch"><span class="ic">×5</span><h3>Batch variations</h3><p>One product, 5 hooks, 5 ads. Find the winner faster.</p></a>
-      <a class="bx b-plan" href="#" data-act="plans"><span class="eyebrow">${plan ? `${esc(plan.name)} plan` : 'Plans'}</span><h3>✦ ${a.credits.toLocaleString()} credits</h3>
-        <p>${plan ? `${plan.credits.toLocaleString()} credits every month` : `Creator: ${creator.credits.toLocaleString()} credits / month for ${RM(creator.price)}`}</p><span class="cta sm">${plan ? 'Manage' : 'See plans'} →</span></a>
-      <div class="bx b-quick"><h3>Create</h3><div class="qk">
-        <button data-go="video">🎬<b>Video</b><small>Camera moves</small></button>
-        <button data-go="image">🖼<b>Image</b><small>Packshots</small></button>
-        <button data-go="talk">🗣<b>Talk</b><small>Lip-sync</small></button>
-        <button data-go="story">📽<b>Story</b><small>Narrated</small></button></div></div>
-    </section>
-    ${guideHTML()}`;
-  if (!S.posts) loadPosts().then(() => S.mode === 'home' && renderHome());
+    <section class="bento simple">
+      <div class="bx b-hero">
+        <span class="eyebrow">For TikTok Shop & Shopee affiliates</span>
+        <h1>Make a product ad<br>in 3 easy steps.</h1>
+        <ol class="h-steps">${steps.map((x, i) => `<li class="${x.done ? 'done' : i === next ? 'next' : ''}" ${x.done ? '' : x.act}>
+          <span class="n">${x.done ? '✓' : i + 1}</span><span><b>${x.t}</b><small>${x.d}</small></span></li>`).join('')}</ol>
+        <button class="cta" ${cta.act}>${cta.t} →</button>
+        <span class="stat">From ≈ 9 credits per ad</span>
+      </div>
+      <a class="bx b-av" href="#" data-act="avatars"><div class="faces">${presets.slice(0, 4).map((p) => `<img src="${portrait(p.look, p.id)}" alt="">`).join('')}</div>
+        <h3>No face? No problem.</h3><p>Pick a ready-made AI creator.</p></a>
+      <a class="bx" href="#" data-act="brainstorm"><span class="ic">✨</span><h3>Need ideas?</h3><p>Get hooks and angles from your product photo.</p></a>
+      <a class="bx b-plan" href="#" data-act="plans"><span class="eyebrow">${plan ? `${esc(plan.name)} plan` : 'Your credits'}</span><h3>✦ ${a.credits.toLocaleString()}</h3>
+        <p>${plan ? `${plan.credits.toLocaleString()} credits every month` : cheapest ? `Plans from ${RM(cheapest.price)}/month` : 'Top up anytime'}</p><span class="cta sm">${plan ? 'Manage' : 'See plans'} →</span></a>
+      <div class="bx b-more"><h3>More tools</h3><div class="mt">
+        <button data-go="video">🎬 Video</button><button data-go="image">🖼 Image</button><button data-go="talk">🗣 Talk</button>
+        <button data-go="story">📽 Story</button><button data-go="voice">🎙 Voice</button><button data-go="schedule">📤 Auto-post</button></div></div>
+    </section>`;
 }
 
 // ---------- avatars ----------

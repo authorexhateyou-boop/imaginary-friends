@@ -146,10 +146,10 @@ async function planOf(uid) {
   const p = await store.getProfile(uid);
   return p?.plan || 'free';
 }
-const PLAN_NAME = { starter: 'Starter', creator: 'Creator', pro: 'Pro' };
+const PLAN_NAME = { basic: 'Basic', starter: 'Starter', creator: 'Creator', pro: 'Pro' };
 const planFail = (what, need) => Object.assign(new Error(`${what} needs the ${PLAN_NAME[need]} plan or higher.`), { status: 403, code: 'plan' });
 function checkPlan(plan, tool, i) {
-  const tier = i.tier && TIERS[i.tier];
+  const tier = ['ugc', 'avatar', 'story'].includes(tool) ? TIERS[i.tier] || TIERS[tool === 'story' ? 'motion' : 'lite'] : null;
   if (tier && ['ugc', 'avatar', 'story'].includes(tool) && !allowed(plan, tier.plan)) throw planFail(`${tier.label} quality`, tier.plan);
   if (i.model && ['shot', 'story'].includes(tool) && !(tool === 'story' && (i.tier || 'motion') === 'motion')) {
     const need = MODEL_PLAN[i.model];

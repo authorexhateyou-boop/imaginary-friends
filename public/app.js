@@ -4,6 +4,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 
 // ---------- session: hosted mode gives every visitor an anonymous guest account ----------
 const CFG = { mode: 'local' };
+// cheapest tier a beginner can actually use: Lite on Starter and up, Motion on Free/Basic
+function startTier() { try { return ['free', 'basic'].includes(S.app?.access || 'free') ? 'motion' : 'lite'; } catch { return 'motion'; } }
 let sb = null;
 async function token() {
   if (!sb) return null;
@@ -22,7 +24,8 @@ async function initSession() {
   if (CFG.mode === 'preview') {
     await loadScript('mock.js');
     Object.assign(CFG, { payments: true, social: true, currency: 'MYR', plans: CFG.plans || [
-      { id: 'starter', name: 'Starter', credits: 1000, price: 59, features: ['Motion, Lite & Fast quality', 'Up to 3 variations per ad', 'All voices + brainstorm'] },
+      { id: 'basic', name: 'Basic', credits: 600, price: 39, features: ['Motion ads & faceless stories', 'Up to 3 variations per ad', 'All voices + brainstorm'] },
+      { id: 'starter', name: 'Starter', credits: 1000, price: 59, features: ['Everything in Basic', 'Lite & Fast AI video', 'Video and Talk tools'] },
       { id: 'creator', name: 'Creator', credits: 2500, price: 129, tag: 'Popular', features: ['Everything in Starter', 'Studio lip-sync + Kling', '5 variations per ad', 'Voice cloning & auto-post'] },
       { id: 'pro', name: 'Pro', credits: 6500, price: 299, tag: 'Best value', features: ['Everything in Creator', 'Premium lip-sync (OmniHuman)', 'Kling Pro video'] }], packs: CFG.packs || [
       { id: 'small', name: 'Small', credits: 300, price: 25 },
@@ -135,8 +138,8 @@ const PRESETS = {
 const DEFAULTS = {
   video: () => ({ prompt: '', friendId: null, productId: null, startImage: null, camera: 'dolly-in', style: 'cinematic', model: 'h3-turbo', duration: 5, aspect: '9:16', audio: false }),
   image: () => ({ prompt: '', friendId: null, productId: null, style: 'photo', aspect: '9:16', count: 2 }),
-  ad: () => ({ prompt: '', friendId: null, productId: null, format: 'talking', tier: 'lite', approve: true, variants: 1, angle: 'review', platform: 'tiktok', lang: 'ms', seconds: 8, voice: 'mm:Lively_Girl', captions: true }),
-  talk: () => ({ prompt: '', friendId: null, image: null, textMode: 'script', tier: 'lite', lang: 'ms', voice: 'mm:Lively_Girl', captions: true, seconds: 8 }),
+  ad: () => ({ prompt: '', friendId: null, productId: null, format: 'talking', tier: startTier(), approve: true, variants: 1, angle: 'review', platform: 'tiktok', lang: 'ms', seconds: 8, voice: 'mm:Lively_Girl', captions: true }),
+  talk: () => ({ prompt: '', friendId: null, image: null, textMode: 'script', tier: startTier(), lang: 'ms', voice: 'mm:Lively_Girl', captions: true, seconds: 8 }),
   story: () => ({ prompt: '', friendId: null, scenes: 4, tier: 'motion', aspect: '9:16', style: 'cinematic', lang: 'en', voice: 'el:Aria', model: 'h3-turbo', captions: true }),
   voice: () => ({ prompt: '', kind: 'tts', voice: 'el:Aria', voiceEngine: 'v3', emotion: 'neutral', speed: 1, lang: 'ms', length: 30 }),
   home: () => ({}), schedule: () => ({}),
@@ -388,7 +391,7 @@ const sigs = new Map();
 function renderFeed() {
   const feed = $('#feed');
   if (!S.jobs.length) {
-    feed.innerHTML = `<div class="feed-h"><h2>Your creations</h2></div><div class="empty">Nothing yet. Type a prompt below and hit Generate.</div>`;
+    feed.innerHTML = `<div class="feed-h"><h2>Your creations</h2></div><div class="empty">${S.mode === 'home' ? 'Nothing yet. Your ads and videos will appear here.' : 'Nothing yet. Type a prompt below and hit Generate.'}</div>`;
     return;
   }
   if (!$('.grid', feed)) feed.innerHTML = `<div class="feed-h"><h2>Your creations</h2><span class="muted" id="cnt"></span></div><div class="grid"></div>`;
@@ -445,8 +448,8 @@ const MODEL_SUB = () => Object.fromEntries(Object.entries(S.app.catalog.videoMod
 const TIER_SUB = () => Object.fromEntries(Object.entries(S.app.catalog.tiers || {}).map(([k, t]) => [k, `${t.tag} · ${TIER_COST[k] || ''}`]));
 const TIER_COST = { motion: '≈ 9 cr per ad', lite: '≈ 32 cr', fast: '≈ 49 cr', studio: '≈ 170 cr', premium: '≈ 320 cr' };
 // ---------- plan access (what the current plan unlocks) ----------
-const RANK = { free: 0, starter: 1, creator: 2, pro: 3 };
-const PLAN_LABEL = { starter: 'Starter', creator: 'Creator', pro: 'Pro' };
+const RANK = { free: 0, basic: 1, starter: 2, creator: 3, pro: 4 };
+const PLAN_LABEL = { basic: 'Basic', starter: 'Starter', creator: 'Creator', pro: 'Pro' };
 const access = () => S.app?.access || 'free';
 const canUse = (need) => (RANK[access()] ?? 0) >= (RANK[need] ?? 0);
 function needFor(key, v) {
